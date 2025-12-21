@@ -463,31 +463,42 @@ void loop()
     }
   #endif
 
-  if (Serial.available())
+  // Batch read serial data for efficiency
+  int available = Serial.available();
+  if (available > 0)
   {
-    uint8_t c = Serial.read();
+    static uint8_t serialBuffer[256];
+    int bytesToRead = min(available, (int)sizeof(serialBuffer));
+    int bytesRead = Serial.readBytes(serialBuffer, bytesToRead);
 
-    // Process MSP packets
-    if (msp.processReceivedByte(c))
+    bool crsfClientsConnected = crsfWsHasClients();
+
+    for (int i = 0; i < bytesRead; i++)
     {
-      // Finished processing a complete packet
-      ProcessMSPPacketFromTX(msp.getReceivedPacket());
-      msp.markPacketReceived();
-    }
+      uint8_t c = serialBuffer[i];
 
-  #if defined(MAVLINK_ENABLED)
-    // Try to parse MAVLink packets from the TX
-    mavlink.ProcessMAVLinkFromTX(c);
-  #endif
-
-    // Process CRSF packets if WebSocket clients are connected
-    if (crsfWsHasClients())
-    {
-      if (crsfPassthrough.processReceivedByte(c))
+      // Process MSP packets
+      if (msp.processReceivedByte(c))
       {
-        // Complete CRSF frame received, forward to WebSocket
-        crsfWsSendFrame(crsfPassthrough.getReceivedFrame(), crsfPassthrough.getReceivedFrameLength());
-        crsfPassthrough.markFrameReceived();
+        // Finished processing a complete packet
+        ProcessMSPPacketFromTX(msp.getReceivedPacket());
+        msp.markPacketReceived();
+      }
+
+    #if defined(MAVLINK_ENABLED)
+      // Try to parse MAVLink packets from the TX
+      mavlink.ProcessMAVLinkFromTX(c);
+    #endif
+
+      // Process CRSF packets if WebSocket clients are connected
+      if (crsfClientsConnected)
+      {
+        if (crsfPassthrough.processReceivedByte(c))
+        {
+          // Complete CRSF frame received, forward to WebSocket
+          crsfWsSendFrame(crsfPassthrough.getReceivedFrame(), crsfPassthrough.getReceivedFrameLength());
+          crsfPassthrough.markFrameReceived();
+        }
       }
     }
   }

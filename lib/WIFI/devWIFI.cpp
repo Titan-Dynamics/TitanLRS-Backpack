@@ -918,21 +918,41 @@ static void HandleWebUpdate()
           remote = WiFi.broadcastIP();
         }
 
-        mavlinkUDP.beginPacket(remote, config.GetMavlinkSendPort());
-        mavlink_message_t* msgQueue = mavlink.GetQueuedMsgs();
-        for (uint8_t i = 0; i < mavlink.GetQueuedMsgCount(); i++)
+        if (mavlinkUDP.beginPacket(remote, config.GetMavlinkSendPort()))
         {
+          mavlink_message_t* msgQueue = mavlink.GetQueuedMsgs();
           uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-          uint16_t len = mavlink_msg_to_send_buffer(buf, &msgQueue[i]);
-          size_t sent = mavlinkUDP.write(buf, len);
-          if (sent < len)
+          bool writeError = false;
+          
+          for (uint8_t i = 0; i < mavlink.GetQueuedMsgCount(); i++)
           {
-            break;
+            uint16_t len = mavlink_msg_to_send_buffer(buf, &msgQueue[i]);
+            size_t sent = mavlinkUDP.write(buf, len);
+            if (sent < len)
+            {
+              DBGLN("WARNING: MAVLink UDP write partial: sent %d of %d bytes", sent, len);
+              writeError = true;
+              break;
+            }
           }
+          
+          int endPacketResult = mavlinkUDP.endPacket();
+          if (endPacketResult == 0)
+          {
+            DBGLN("ERROR: MAVLink UDP endPacket failed (code: 0)");
+          }
+          else if (endPacketResult < 0)
+          {
+            DBGLN("ERROR: MAVLink UDP endPacket failed (code: %d)", endPacketResult);
+          }
+          
+          mavlink.ResetQueuedMsgCount();
+          last_mavlink_to_gcs_dump = millis();
         }
-        mavlinkUDP.endPacket();
-        mavlink.ResetQueuedMsgCount();
-        last_mavlink_to_gcs_dump = millis();
+        else
+        {
+          DBGLN("ERROR: MAVLink UDP beginPacket failed");
+        }
       }
 
       // Check if we have MAVLink UDP data to send over UART
