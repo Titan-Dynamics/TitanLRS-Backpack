@@ -26,6 +26,7 @@
 				<li><a data-mui-toggle="tab" data-mui-controls="pane-justified-2">Backpack</a></li>
 				<li><a data-mui-toggle="tab" data-mui-controls="pane-justified-3">Network</a></li>
 				<li><a data-mui-toggle="tab" data-mui-controls="pane-justified-4">MavLink</a></li>
+				<li id="params_tab"><a data-mui-toggle="tab" data-mui-controls="pane-justified-5">Parameters</a></li>
 			</ul>
 
 			<div class="mui-tabs__pane mui--is-active" id="pane-justified-1">
@@ -145,6 +146,51 @@
 						<td id="mavlink_gcs_ip"></td>
 					</tr>
 				</table>
+			</div>
+
+			<div class="mui-tabs__pane" id="pane-justified-5">
+				<h2>Device Parameters</h2>
+				<div class="mui-row">
+					<!-- Device Discovery Panel -->
+					<div class="mui-col-md-4">
+						<div class="mui-panel" style="border: 1px solid #ddd; padding: 15px; min-height: 400px;">
+							<h3>Device Discovery</h3>
+							<button id="scan_devices" class="mui-btn mui-btn--primary" style="width: 100%; margin-bottom: 10px;">
+								Scan for Devices
+							</button>
+							<div id="device_list" style="margin-top: 10px;">
+								<p style="color: #999; text-align: center;">Click "Scan for Devices" to discover CRSF devices</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Parameters Panel -->
+					<div class="mui-col-md-8">
+						<div class="mui-panel" style="border: 1px solid #ddd; padding: 15px; min-height: 400px;">
+							<div id="params_header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+								<h3 id="params_device_name" style="margin: 0;">Select a device</h3>
+								<button id="reload_params" class="mui-btn mui-btn--primary" disabled>
+									Reload
+								</button>
+							</div>
+							<div id="params_breadcrumb" style="margin-bottom: 10px; display: none;">
+								<button id="params_back" class="mui-btn mui-btn--flat">
+									&larr; Back
+								</button>
+								<span id="params_path" style="margin-left: 10px; color: #666;"></span>
+							</div>
+							<div id="params_content">
+								<p style="color: #999; text-align: center; margin-top: 50px;">
+									No device selected
+								</p>
+							</div>
+							<div id="params_loading" style="display: none; text-align: center; margin-top: 50px;">
+								<div class="loader"></div>
+								<p>Loading parameters...</p>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>

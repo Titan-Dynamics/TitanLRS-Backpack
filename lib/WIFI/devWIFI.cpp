@@ -52,6 +52,7 @@ extern wifi_service_t wifiService;
 #if defined(MAVLINK_ENABLED)
 extern MAVLink mavlink;
 #endif
+#include "CrsfPassthrough.h"
 #elif defined(TARGET_TIMER_BACKPACK)
 extern TimerBackpackConfig config;
 #else
@@ -100,6 +101,11 @@ static AsyncWebServer server(80);
 static AsyncWebSocket ws("/ws");
 extern bool sendHeadTrackingChangesToVrx;
 extern bool headTrackingEnabled;
+#endif
+#if defined(TARGET_TX_BACKPACK)
+static AsyncWebSocket crsfWs("/crsf");
+// Callback to send CRSF frames to UART (set by Tx_main.cpp)
+static void (*crsfUartSendCallback)(uint8_t* data, uint8_t len) = nullptr;
 #endif
 static bool servicesStarted = false;
 
@@ -219,6 +225,63 @@ static void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, Aw
     }
 #endif
   }
+}
+#endif
+
+#if defined(TARGET_TX_BACKPACK)
+/**
+ * CRSF WebSocket event handler.
+ * Handles binary CRSF frames from the browser and forwards them to UART.
+ */
+static void onCrsfWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len)
+{
+    if (type == WS_EVT_CONNECT) {
+        DBGLN("CRSF WebSocket client connected");
+    }
+    else if (type == WS_EVT_DISCONNECT) {
+        DBGLN("CRSF WebSocket client disconnected");
+    }
+    else if (type == WS_EVT_DATA) {
+        AwsFrameInfo *info = (AwsFrameInfo*)arg;
+        // Only handle binary messages that are complete in one frame
+        if (info->final && info->index == 0 && info->len == len && info->opcode == WS_BINARY) {
+            // Validate it looks like a CRSF frame
+            if (len >= 4 && data[0] == CRSF_SYNC_BYTE && CrsfPassthrough::validateFrame(data, len)) {
+                // Forward to UART via callback
+                if (crsfUartSendCallback != nullptr) {
+                    crsfUartSendCallback(data, len);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Register callback for sending CRSF frames to UART.
+ * Called by Tx_main.cpp during initialization.
+ */
+void crsfWsRegisterUartCallback(void (*callback)(uint8_t* data, uint8_t len))
+{
+    crsfUartSendCallback = callback;
+}
+
+/**
+ * Send a CRSF frame to all connected WebSocket clients.
+ * Called by Tx_main.cpp when a CRSF frame is received from UART.
+ */
+void crsfWsSendFrame(uint8_t* data, uint8_t len)
+{
+    if (servicesStarted && crsfWs.count() > 0) {
+        crsfWs.binaryAll(data, len);
+    }
+}
+
+/**
+ * Check if CRSF WebSocket has connected clients.
+ */
+bool crsfWsHasClients()
+{
+    return servicesStarted && crsfWs.count() > 0;
 }
 #endif
 
@@ -725,6 +788,11 @@ static void startServices()
   #if defined(HAS_HEADTRACKING)|| defined(SUPPORT_HEADTRACKING)
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
+  #endif
+
+  #if defined(TARGET_TX_BACKPACK)
+  crsfWs.onEvent(onCrsfWsEvent);
+  server.addHandler(&crsfWs);
   #endif
 
   server.begin();

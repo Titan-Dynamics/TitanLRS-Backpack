@@ -22,6 +22,8 @@
 #include "devButton.h"
 #include "devLED.h"
 
+#include "CrsfPassthrough.h"
+
 #if defined(MAVLINK_ENABLED)
 #include <MAVLink.h>
 #endif
@@ -57,6 +59,7 @@ ELRS_EEPROM eeprom;
 TxBackpackConfig config;
 mspPacket_t cachedVTXPacket;
 mspPacket_t cachedHTPacket;
+CrsfPassthrough crsfPassthrough;
 #if defined(MAVLINK_ENABLED)
 MAVLink mavlink;
 #endif
@@ -64,6 +67,15 @@ MAVLink mavlink;
 /////////// FUNCTION DEFS ///////////
 
 void sendMSPViaEspnow(mspPacket_t *packet);
+
+/**
+ * Callback from WebSocket to send CRSF frame to UART.
+ * Called when the browser sends a CRSF frame via WebSocket.
+ */
+void sendCrsfToUart(uint8_t* data, uint8_t len)
+{
+    Serial.write(data, len);
+}
 
 /////////////////////////////////////
 
@@ -431,6 +443,10 @@ void setup()
   {
     connectionState = running;
   }
+
+  // Register callback for CRSF WebSocket to send frames to UART
+  crsfWsRegisterUartCallback(sendCrsfToUart);
+
   DBGLN("Setup completed");
 }
 
@@ -451,7 +467,7 @@ void loop()
   {
     uint8_t c = Serial.read();
 
-    // Try to parse MSP packets from the TX
+    // Process MSP packets
     if (msp.processReceivedByte(c))
     {
       // Finished processing a complete packet
@@ -463,6 +479,17 @@ void loop()
     // Try to parse MAVLink packets from the TX
     mavlink.ProcessMAVLinkFromTX(c);
   #endif
+
+    // Process CRSF packets if WebSocket clients are connected
+    if (crsfWsHasClients())
+    {
+      if (crsfPassthrough.processReceivedByte(c))
+      {
+        // Complete CRSF frame received, forward to WebSocket
+        crsfWsSendFrame(crsfPassthrough.getReceivedFrame(), crsfPassthrough.getReceivedFrameLength());
+        crsfPassthrough.markFrameReceived();
+      }
+    }
   }
 
   if (cacheFull && sendCached)

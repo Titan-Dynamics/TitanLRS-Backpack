@@ -804,3 +804,604 @@ function calibrationOff() {
     _('main').classList.remove('loading');
     mui.overlay('off');
 }
+
+//=========================================================
+// CRSF Device Parameters
+//=========================================================
+
+const CRSF = {
+    // Sync byte and CRC polynomial
+    SYNC_BYTE: 0xC8,
+    CRC_POLY: 0xD5,
+
+    // Frame types
+    DEVICE_PING: 0x28,
+    DEVICE_INFO: 0x29,
+    PARAM_ENTRY: 0x2B,
+    PARAM_READ: 0x2C,
+    PARAM_WRITE: 0x2D,
+
+    // Addresses
+    ADDR_BROADCAST: 0x00,
+    ADDR_USB: 0x10,
+    ADDR_RADIO_TRANSMITTER: 0xEA,
+    ADDR_RX: 0xEC,
+    ADDR_TX: 0xEE,
+
+    // Parameter types
+    PARAM_TYPE_UINT8: 0x00,
+    PARAM_TYPE_INT8: 0x01,
+    PARAM_TYPE_UINT16: 0x02,
+    PARAM_TYPE_INT16: 0x03,
+    PARAM_TYPE_FLOAT: 0x08,
+    PARAM_TYPE_TEXT_SELECTION: 0x09,
+    PARAM_TYPE_STRING: 0x0A,
+    PARAM_TYPE_FOLDER: 0x0B,
+    PARAM_TYPE_INFO: 0x0C,
+    PARAM_TYPE_COMMAND: 0x0D,
+    PARAM_HIDDEN: 0x80,
+
+    // Calculate CRC-8 for CRSF data
+    calculateCRC: function(data) {
+        let crc = 0;
+        for (let i = 0; i < data.length; i++) {
+            crc = crc ^ data[i];
+            for (let j = 0; j < 8; j++) {
+                if (crc & 0x80) {
+                    crc = (crc << 1) ^ this.CRC_POLY;
+                } else {
+                    crc = crc << 1;
+                }
+                crc &= 0xFF;
+            }
+        }
+        return crc;
+    },
+
+    // Build a CRSF frame with extended addressing (type >= 0x28)
+    buildFrame: function(type, dest, origin, payload) {
+        const payloadLen = payload ? payload.length : 0;
+        const length = 4 + payloadLen; // type + dest + origin + payload + crc
+        const frame = new Uint8Array(2 + length);
+        frame[0] = this.SYNC_BYTE;
+        frame[1] = length;
+        frame[2] = type;
+        frame[3] = dest;
+        frame[4] = origin;
+        if (payload && payloadLen > 0) {
+            frame.set(payload, 5);
+        }
+        // Calculate CRC over type, dest, origin, and payload
+        const crcData = frame.slice(2, 2 + length - 1);
+        frame[2 + length - 1] = this.calculateCRC(crcData);
+        return frame;
+    },
+
+    // Parse a CRSF frame
+    parseFrame: function(data) {
+        if (data.length < 4 || data[0] !== this.SYNC_BYTE) {
+            return null;
+        }
+        const length = data[1];
+        if (data.length < length + 2) {
+            return null;
+        }
+        const type = data[2];
+        let dest = 0, origin = 0, payload;
+        if (type >= 0x28) {
+            dest = data[3];
+            origin = data[4];
+            payload = data.slice(5, 1 + length);
+        } else {
+            payload = data.slice(3, 1 + length);
+        }
+        return { type, dest, origin, payload };
+    },
+
+    // Read null-terminated string from Uint8Array at offset
+    readString: function(data, offset) {
+        let str = '';
+        let i = offset;
+        while (i < data.length && data[i] !== 0) {
+            str += String.fromCharCode(data[i]);
+            i++;
+        }
+        return { value: str, nextOffset: i + 1 };
+    }
+};
+
+// CRSF Parameters State Machine
+const CrsfParams = {
+    ws: null,
+    devices: [],
+    selectedDevice: null,
+    parameters: [],
+    parameterCount: 0,
+    loadedCount: 0,
+    currentFolder: 0,
+    folderStack: [],
+    pendingChunks: [],
+    pendingParamNumber: 0,
+    scanTimeout: null,
+    paramTimeout: null,
+    originAddress: CRSF.ADDR_RADIO_TRANSMITTER,
+
+    // Initialize the parameters UI
+    init: function() {
+        const scanBtn = _('scan_devices');
+        if (scanBtn) {
+            scanBtn.addEventListener('click', () => this.scanDevices());
+        }
+        const reloadBtn = _('reload_params');
+        if (reloadBtn) {
+            reloadBtn.addEventListener('click', () => this.loadParameters());
+        }
+        const backBtn = _('params_back');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => this.navigateBack());
+        }
+    },
+
+    // Connect WebSocket
+    connect: function() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve, reject) => {
+            this.ws = new WebSocket('ws://' + window.location.hostname + '/crsf');
+            this.ws.binaryType = 'arraybuffer';
+            this.ws.onopen = () => {
+                console.log('CRSF WebSocket connected');
+                resolve();
+            };
+            this.ws.onclose = () => {
+                console.log('CRSF WebSocket closed');
+                this.ws = null;
+            };
+            this.ws.onerror = (e) => {
+                console.error('CRSF WebSocket error', e);
+                reject(e);
+            };
+            this.ws.onmessage = (e) => this.handleMessage(e);
+        });
+    },
+
+    // Handle incoming WebSocket message
+    handleMessage: function(event) {
+        const data = new Uint8Array(event.data);
+        const frame = CRSF.parseFrame(data);
+        if (!frame) return;
+
+        switch (frame.type) {
+            case CRSF.DEVICE_INFO:
+                this.handleDeviceInfo(frame);
+                break;
+            case CRSF.PARAM_ENTRY:
+                this.handleParamEntry(frame);
+                break;
+        }
+    },
+
+    // Handle device info response
+    handleDeviceInfo: function(frame) {
+        const payload = frame.payload;
+        // Parse device name (null-terminated string)
+        const nameResult = CRSF.readString(payload, 0);
+        const name = nameResult.value;
+        let offset = nameResult.nextOffset;
+
+        // Parse device info fields
+        const view = new DataView(payload.buffer, payload.byteOffset, payload.length);
+        const serialNumber = view.getUint32(offset, false); offset += 4;
+        const hardwareId = view.getUint32(offset, false); offset += 4;
+        const firmwareId = view.getUint32(offset, false); offset += 4;
+        const parametersTotal = payload[offset++];
+        const parameterVersion = payload[offset++];
+
+        const device = {
+            name,
+            address: frame.origin,
+            serialNumber,
+            hardwareId,
+            firmwareId,
+            parametersTotal,
+            parameterVersion
+        };
+
+        // Update or add device to list
+        const existingIndex = this.devices.findIndex(d => d.address === device.address);
+        if (existingIndex >= 0) {
+            this.devices[existingIndex] = device;
+        } else {
+            this.devices.push(device);
+        }
+        this.renderDeviceList();
+    },
+
+    // Handle parameter entry response
+    handleParamEntry: function(frame) {
+        const payload = frame.payload;
+        if (payload.length < 2) return;
+
+        const paramNumber = payload[0];
+        const chunksRemaining = payload[1];
+        const chunkData = payload.slice(2);
+
+        // Add chunk to pending
+        this.pendingChunks.push(chunkData);
+
+        if (chunksRemaining === 0) {
+            // All chunks received, combine and parse
+            let totalLen = 0;
+            this.pendingChunks.forEach(c => totalLen += c.length);
+            const fullData = new Uint8Array(totalLen);
+            let pos = 0;
+            this.pendingChunks.forEach(c => {
+                fullData.set(c, pos);
+                pos += c.length;
+            });
+            this.pendingChunks = [];
+
+            // Parse parameter
+            const param = this.parseParameter(paramNumber, fullData);
+            if (param) {
+                this.parameters[paramNumber] = param;
+                this.loadedCount++;
+                this.updateLoadingProgress();
+            }
+
+            // Request next parameter if not done
+            if (this.loadedCount < this.parameterCount) {
+                this.requestNextParameter();
+            } else {
+                // All parameters loaded
+                this.finishLoading();
+            }
+        } else {
+            // Request next chunk
+            this.requestParameter(paramNumber, this.pendingChunks.length);
+        }
+    },
+
+    // Parse a complete parameter
+    parseParameter: function(number, data) {
+        if (data.length < 3) return null;
+
+        let offset = 0;
+        const parentFolder = data[offset++];
+        const typeByte = data[offset++];
+        const type = typeByte & 0x3F;
+        const hidden = (typeByte & CRSF.PARAM_HIDDEN) !== 0;
+
+        const nameResult = CRSF.readString(data, offset);
+        const name = nameResult.value;
+        offset = nameResult.nextOffset;
+
+        const param = {
+            number,
+            parentFolder,
+            type,
+            hidden,
+            name,
+            value: null,
+            options: null,
+            min: null,
+            max: null,
+            defaultValue: null,
+            unit: ''
+        };
+
+        const view = new DataView(data.buffer, data.byteOffset, data.length);
+
+        switch (type) {
+            case CRSF.PARAM_TYPE_UINT8:
+                param.value = data[offset++];
+                param.min = data[offset++];
+                param.max = data[offset++];
+                param.defaultValue = data[offset++];
+                param.unit = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_INT8:
+                param.value = new Int8Array([data[offset++]])[0];
+                param.min = new Int8Array([data[offset++]])[0];
+                param.max = new Int8Array([data[offset++]])[0];
+                param.defaultValue = new Int8Array([data[offset++]])[0];
+                param.unit = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_TEXT_SELECTION:
+                const optionsResult = CRSF.readString(data, offset);
+                param.options = optionsResult.value.split(';');
+                offset = optionsResult.nextOffset;
+                param.value = data[offset++];
+                param.min = data[offset++];
+                param.max = data[offset++];
+                param.defaultValue = data[offset++];
+                param.unit = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_FOLDER:
+                // Folder has no additional data
+                break;
+
+            case CRSF.PARAM_TYPE_INFO:
+                param.value = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_COMMAND:
+                param.status = data[offset++];
+                param.timeout = data[offset++];
+                param.value = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_STRING:
+                param.value = CRSF.readString(data, offset).value;
+                break;
+        }
+
+        return param;
+    },
+
+    // Scan for devices
+    scanDevices: async function() {
+        try {
+            await this.connect();
+        } catch (e) {
+            cuteAlert({
+                type: 'error',
+                title: 'Connection Error',
+                message: 'Failed to connect to CRSF WebSocket'
+            });
+            return;
+        }
+
+        this.devices = [];
+        this.renderDeviceList();
+        _('scan_devices').disabled = true;
+        _('scan_devices').textContent = 'Scanning...';
+
+        // Send device ping
+        const frame = CRSF.buildFrame(CRSF.DEVICE_PING, CRSF.ADDR_BROADCAST, this.originAddress, new Uint8Array(0));
+        this.ws.send(frame);
+
+        // Wait for responses
+        this.scanTimeout = setTimeout(() => {
+            _('scan_devices').disabled = false;
+            _('scan_devices').textContent = 'Scan for Devices';
+            if (this.devices.length === 0) {
+                _('device_list').innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
+            }
+        }, 2000);
+    },
+
+    // Select a device
+    selectDevice: function(device) {
+        this.selectedDevice = device;
+        this.currentFolder = 0;
+        this.folderStack = [];
+        _('params_device_name').textContent = device.name;
+        _('reload_params').disabled = false;
+        _('params_breadcrumb').style.display = 'none';
+        this.loadParameters();
+    },
+
+    // Load parameters for selected device
+    loadParameters: async function() {
+        if (!this.selectedDevice) return;
+
+        try {
+            await this.connect();
+        } catch (e) {
+            return;
+        }
+
+        this.parameters = [];
+        this.parameterCount = this.selectedDevice.parametersTotal;
+        this.loadedCount = 0;
+        this.pendingChunks = [];
+
+        _('params_content').style.display = 'none';
+        _('params_loading').style.display = 'block';
+
+        // Request first parameter (index 1, chunk 0)
+        this.requestParameter(1, 0);
+    },
+
+    // Request a specific parameter chunk
+    requestParameter: function(paramNum, chunkNum) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+        const payload = new Uint8Array([paramNum, chunkNum]);
+        const frame = CRSF.buildFrame(CRSF.PARAM_READ, this.selectedDevice.address, this.originAddress, payload);
+        this.ws.send(frame);
+
+        // Set timeout for response
+        clearTimeout(this.paramTimeout);
+        this.paramTimeout = setTimeout(() => {
+            console.warn('Parameter request timeout');
+            this.finishLoading();
+        }, 5000);
+    },
+
+    // Request next parameter in sequence
+    requestNextParameter: function() {
+        const nextNum = this.loadedCount + 1;
+        if (nextNum <= this.parameterCount) {
+            this.pendingChunks = [];
+            this.requestParameter(nextNum, 0);
+        }
+    },
+
+    // Update loading progress
+    updateLoadingProgress: function() {
+        const loading = _('params_loading');
+        if (loading) {
+            loading.querySelector('p').textContent =
+                `Loading parameters... (${this.loadedCount}/${this.parameterCount})`;
+        }
+    },
+
+    // Finish loading and render
+    finishLoading: function() {
+        clearTimeout(this.paramTimeout);
+        _('params_loading').style.display = 'none';
+        _('params_content').style.display = 'block';
+        this.renderParameters();
+    },
+
+    // Navigate to a folder
+    navigateToFolder: function(folderId, folderName) {
+        this.folderStack.push({ id: this.currentFolder, name: folderName });
+        this.currentFolder = folderId;
+        this.updateBreadcrumb();
+        this.renderParameters();
+    },
+
+    // Navigate back
+    navigateBack: function() {
+        if (this.folderStack.length > 0) {
+            const prev = this.folderStack.pop();
+            this.currentFolder = prev.id;
+            this.updateBreadcrumb();
+            this.renderParameters();
+        }
+    },
+
+    // Update breadcrumb display
+    updateBreadcrumb: function() {
+        const breadcrumb = _('params_breadcrumb');
+        const pathSpan = _('params_path');
+        if (this.folderStack.length > 0) {
+            breadcrumb.style.display = 'block';
+            pathSpan.textContent = this.folderStack.map(f => f.name).join(' > ');
+        } else {
+            breadcrumb.style.display = 'none';
+        }
+    },
+
+    // Update a parameter value
+    updateParameter: async function(paramNum, value) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+        const param = this.parameters[paramNum];
+        if (!param) return;
+
+        let serialized;
+        switch (param.type) {
+            case CRSF.PARAM_TYPE_UINT8:
+            case CRSF.PARAM_TYPE_TEXT_SELECTION:
+                serialized = new Uint8Array([paramNum, value]);
+                break;
+            case CRSF.PARAM_TYPE_INT8:
+                serialized = new Uint8Array([paramNum, value & 0xFF]);
+                break;
+            case CRSF.PARAM_TYPE_COMMAND:
+                // For commands, send param number and a value (usually 0 to execute)
+                serialized = new Uint8Array([paramNum, value]);
+                break;
+            default:
+                return;
+        }
+
+        const frame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, serialized);
+        this.ws.send(frame);
+
+        // Reload after a short delay
+        setTimeout(() => this.loadParameters(), 100);
+    },
+
+    // Render device list
+    renderDeviceList: function() {
+        const container = _('device_list');
+        if (this.devices.length === 0) {
+            container.innerHTML = '<p style="color: #999; text-align: center;">Click "Scan for Devices" to discover CRSF devices</p>';
+            return;
+        }
+
+        let html = '';
+        this.devices.forEach(device => {
+            const selected = this.selectedDevice && this.selectedDevice.address === device.address;
+            html += `<div class="mui-panel" style="padding: 10px; margin-bottom: 5px; cursor: pointer;
+                        background: ${selected ? '#e3f2fd' : '#fff'}; border: 1px solid ${selected ? '#2196f3' : '#ddd'};"
+                        onclick="CrsfParams.selectDevice(${JSON.stringify(device).replace(/"/g, '&quot;')})">
+                        <strong>${device.name}</strong><br>
+                        <small style="color: #666;">Address: 0x${device.address.toString(16).toUpperCase()}</small><br>
+                        <small style="color: #666;">Params: ${device.parametersTotal}</small>
+                    </div>`;
+        });
+        container.innerHTML = html;
+    },
+
+    // Render parameters
+    renderParameters: function() {
+        const container = _('params_content');
+        const params = this.parameters.filter(p => p && p.parentFolder === this.currentFolder && !p.hidden);
+
+        if (params.length === 0) {
+            container.innerHTML = '<p style="color: #999; text-align: center;">No parameters in this folder</p>';
+            return;
+        }
+
+        let html = '<table class="mui-table" style="width: 100%;">';
+        params.forEach(param => {
+            html += '<tr>';
+            html += `<td style="width: 40%; vertical-align: middle;"><strong>${param.name}</strong>`;
+            if (param.unit) html += ` <small style="color: #666;">(${param.unit})</small>`;
+            html += '</td>';
+            html += '<td style="width: 60%;">';
+            html += this.renderParamControl(param);
+            html += '</td></tr>';
+        });
+        html += '</table>';
+        container.innerHTML = html;
+    },
+
+    // Render control for a parameter
+    renderParamControl: function(param) {
+        switch (param.type) {
+            case CRSF.PARAM_TYPE_UINT8:
+            case CRSF.PARAM_TYPE_INT8:
+                return `<input type="number" value="${param.value}" min="${param.min}" max="${param.max}"
+                        class="mui-textfield" style="width: 80px;"
+                        onchange="CrsfParams.updateParameter(${param.number}, parseInt(this.value))">`;
+
+            case CRSF.PARAM_TYPE_TEXT_SELECTION:
+                let options = '';
+                param.options.forEach((opt, i) => {
+                    options += `<option value="${i}" ${i === param.value ? 'selected' : ''}>${opt}</option>`;
+                });
+                return `<select class="mui-select" onchange="CrsfParams.updateParameter(${param.number}, parseInt(this.value))">${options}</select>`;
+
+            case CRSF.PARAM_TYPE_FOLDER:
+                return `<button class="mui-btn mui-btn--small mui-btn--primary"
+                        onclick="CrsfParams.navigateToFolder(${param.number}, '${param.name.replace(/'/g, "\\'")}')">
+                        Open &rarr;</button>`;
+
+            case CRSF.PARAM_TYPE_INFO:
+                return `<span style="color: #666;">${param.value || ''}</span>`;
+
+            case CRSF.PARAM_TYPE_COMMAND:
+                const statusText = param.status === 0 ? 'Ready' : (param.status === 1 ? 'Running...' : 'Done');
+                return `<button class="mui-btn mui-btn--small"
+                        onclick="CrsfParams.updateParameter(${param.number}, 0)"
+                        ${param.status === 1 ? 'disabled' : ''}>${param.value || 'Execute'}</button>
+                        <small style="color: #666; margin-left: 10px;">${statusText}</small>`;
+
+            case CRSF.PARAM_TYPE_STRING:
+                return `<span style="color: #666;">${param.value || ''}</span>`;
+
+            default:
+                return `<span style="color: #999;">Unsupported type (${param.type})</span>`;
+        }
+    }
+};
+
+// Initialize CRSF Parameters when tab is shown
+if (_('params_tab')) {
+    _('params_tab').addEventListener('mui.tabs.showstart', function() {
+        CrsfParams.init();
+    });
+    // Also initialize on page load in case tab is already active
+    CrsfParams.init();
+}
