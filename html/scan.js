@@ -1534,7 +1534,7 @@ const CrsfParams = {
                 `;
 
             case CRSF.PARAM_TYPE_FOLDER:
-                return `<button class="mui-btn mui-btn--small" onclick="CrsfParams.navigateToFolder(${param.number}, '${param.name.replace(/'/g, "\\'")}')">
+                return `<button class="mui-btn mui-btn--primary" onclick="CrsfParams.navigateToFolder(${param.number}, '${param.name.replace(/'/g, "\\'")}')">
                         Enter
                     </button>`;
 
@@ -1543,7 +1543,7 @@ const CrsfParams = {
 
             case CRSF.PARAM_TYPE_COMMAND:
                 const statusText = param.status === 0 ? 'Ready' : (param.status === 1 ? 'Running...' : 'Done');
-                return `<button class="mui-btn mui-btn--small mui-btn--primary"
+                return `<button class="mui-btn mui-btn--primary"
                         onclick="CrsfParams.executeCommand(${param.number}, '${param.name.replace(/'/g, "\\'")}')"
                         ${param.status === 1 ? 'disabled' : ''}>${param.value || 'Execute'}</button>
                         <small style="color: #666; margin-left: 10px;">${statusText}</small>`;
