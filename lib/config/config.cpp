@@ -54,6 +54,10 @@ TxBackpackConfig::SetDefaults()
     m_config.wifiService = WIFI_SERVICE_UPDATE;
     m_config.mavlinkListenPort = 14555;  // Default MavLink listen port
     m_config.mavlinkSendPort = 14550;    // Default MavLink send port
+    m_config.wifiApSsid[0] = 0;          // Empty string = use default SSID
+    m_config.telemMode = BACKPACK_TELEM_MODE_WIFI;
+    m_config.wifiService = WIFI_SERVICE_MAVLINK_TX;
+    m_config.startWiFi = true;
     m_modified = true;
     Commit();
 }
