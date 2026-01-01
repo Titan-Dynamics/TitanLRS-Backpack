@@ -41,6 +41,7 @@ unsigned long rebootTime = 0;
 
 bool cacheFull = false;
 bool sendCached = false;
+static bool espnowInitialized = false;
 
 device_t *ui_devices[] = {
 #ifdef PIN_LED
@@ -277,6 +278,11 @@ void ProcessMSPPacketFromTX(mspPacket_t *packet)
 
 void sendMSPViaEspnow(mspPacket_t *packet)
 {
+  if (!espnowInitialized)
+  {
+    return;
+  }
+
   uint8_t packetSize = msp.getTotalPacketSize(packet);
   uint8_t nowDataOutput[packetSize];
 
@@ -436,6 +442,7 @@ void setup()
     #endif
 
     esp_now_register_recv_cb(OnDataRecv);
+    espnowInitialized = true;
   }
 
   devicesStart();
