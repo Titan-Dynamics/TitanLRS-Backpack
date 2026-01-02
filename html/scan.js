@@ -137,10 +137,19 @@ function updateConfig(data) {
         if (_('httab')) _('httab').style.display = 'table-cell';
     }
     if((!data.stm32 || data.stm32==="no") && _('tx_tab')) {
-        mui.tabs.activate('pane-justified-2');
         _('tx_tab').style.display = 'none';
     }
     if(config['product_name'] && _('product_name')) _('product_name').textContent = config['product_name'];
+
+    // Update AP SSID field with current value
+    if (config['ap_ssid']) {
+        _('ap_ssid').value = config['ap_ssid'];
+    }
+
+    // Update AP password field with current value
+    if (config['ap_password']) {
+        _('ap_password').value = config['ap_password'];
+    }
 
     updateAatConfig(config);
 }
@@ -506,6 +515,101 @@ function aatLineElementChanged()
 _('sethome').addEventListener('submit', callback("Set Home Network", "An error occurred setting the home network", "/sethome", function() {
     return new FormData(_('sethome'));
 }));
+_('setapssid').addEventListener('submit', callback("WiFi AP SSID Updated", "An error occurred updating the AP SSID", "/setapssid", function() {
+    return new FormData(_('setapssid'));
+}));
+_('ap_ssid_reset').addEventListener('click', function() {
+    // Reset to default by clearing the custom SSID
+    const xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = function() {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                cuteAlert({
+                    type: "info",
+                    title: "Reset to Default",
+                    message: "AP SSID has been reset to default. Changes will take effect on next AP mode activation."
+                });
+                // Fetch updated config and refresh the SSID field
+                const configHttp = new XMLHttpRequest();
+                configHttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        const data = JSON.parse(this.responseText);
+                        if (data.config && data.config.ap_ssid) {
+                            _('ap_ssid').value = data.config.ap_ssid;
+                        }
+                    }
+                };
+                configHttp.open('GET', '/config', true);
+                configHttp.send();
+            } else {
+                cuteAlert({
+                    type: "error",
+                    title: "Reset to Default",
+                    message: "An error occurred resetting the AP SSID"
+                });
+            }
+        }
+    };
+    xmlhttp.open('POST', '/setapssid', true);
+    const formData = new FormData();
+    formData.append('ap_ssid', '___DEFAULT___');
+    xmlhttp.send(formData);
+});
+_('setappassword').addEventListener('submit', callback("WiFi AP Password Updated", "An error occurred updating the AP Password", "/setappassword", function() {
+    return new FormData(_('setappassword'));
+}));
+_('ap_password_reset').addEventListener('click', function() {
+    // Reset to default by clearing the custom password
+    const xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = function() {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                cuteAlert({
+                    type: "info",
+                    title: "Reset to Default",
+                    message: "AP password has been reset to default. Changes will take effect on next AP mode activation."
+                });
+                // Fetch updated config and refresh the password field
+                const configHttp = new XMLHttpRequest();
+                configHttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        const data = JSON.parse(this.responseText);
+                        if (data.config && data.config.ap_password) {
+                            _('ap_password').value = data.config.ap_password;
+                        }
+                    }
+                };
+                configHttp.open('GET', '/config', true);
+                configHttp.send();
+            } else {
+                cuteAlert({
+                    type: "error",
+                    title: "Reset to Default",
+                    message: "An error occurred resetting the AP password"
+                });
+            }
+        }
+    };
+    xmlhttp.open('POST', '/setappassword', true);
+    const formData = new FormData();
+    formData.append('ap_password', '___DEFAULT___');
+    xmlhttp.send(formData);
+});
+_('ap_password_toggle').addEventListener('click', function() {
+    const passwordInput = _('ap_password');
+    const eyeIcon = _('ap_password_eye');
+    const eyeOffIcon = _('ap_password_eye_off');
+
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.style.display = 'none';
+        eyeOffIcon.style.display = 'block';
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.style.display = 'block';
+        eyeOffIcon.style.display = 'none';
+    }
+});
 _('connect').addEventListener('click', callback("Connect to Home Network", "An error occurred connecting to the Home network", "/connect", null));
 _('access').addEventListener('click', callback("Access Point", "An error occurred starting the Access Point", "/access", null));
 _('forget').addEventListener('click', callback("Forget Home Network", "An error occurred forgetting the home network", "/forget", null));
@@ -803,4 +907,1139 @@ function calibrationOn() {
 function calibrationOff() {
     _('main').classList.remove('loading');
     mui.overlay('off');
+}
+
+//=========================================================
+// CRSF Device Parameters
+//=========================================================
+
+const CRSF = {
+    // Sync byte and CRC polynomial
+    SYNC_BYTE: 0xC8,
+    CRC_POLY: 0xD5,
+
+    // Frame types
+    DEVICE_PING: 0x28,
+    DEVICE_INFO: 0x29,
+    PARAM_ENTRY: 0x2B,
+    PARAM_READ: 0x2C,
+    PARAM_WRITE: 0x2D,
+    ELRS_STATUS: 0x2E,
+
+    // Addresses
+    ADDR_BROADCAST: 0x00,
+    ADDR_USB: 0x10,
+    ADDR_RADIO_TRANSMITTER: 0xEA,
+    ADDR_RX: 0xEC,
+    ADDR_TX: 0xEE,
+    ADDR_ELRS_LUA: 0xEF,
+
+    // Parameter types
+    PARAM_TYPE_UINT8: 0x00,
+    PARAM_TYPE_INT8: 0x01,
+    PARAM_TYPE_UINT16: 0x02,
+    PARAM_TYPE_INT16: 0x03,
+    PARAM_TYPE_FLOAT: 0x08,
+    PARAM_TYPE_TEXT_SELECTION: 0x09,
+    PARAM_TYPE_STRING: 0x0A,
+    PARAM_TYPE_FOLDER: 0x0B,
+    PARAM_TYPE_INFO: 0x0C,
+    PARAM_TYPE_COMMAND: 0x0D,
+    PARAM_HIDDEN: 0x80,
+
+    // Calculate CRC-8 for CRSF data
+    calculateCRC: function(data) {
+        let crc = 0;
+        for (let i = 0; i < data.length; i++) {
+            crc = crc ^ data[i];
+            for (let j = 0; j < 8; j++) {
+                if (crc & 0x80) {
+                    crc = (crc << 1) ^ this.CRC_POLY;
+                } else {
+                    crc = crc << 1;
+                }
+                crc &= 0xFF;
+            }
+        }
+        return crc;
+    },
+
+    // Build a CRSF frame with extended addressing (type >= 0x28)
+    buildFrame: function(type, dest, origin, payload) {
+        const payloadLen = payload ? payload.length : 0;
+        const length = 4 + payloadLen; // type + dest + origin + payload + crc
+        const frame = new Uint8Array(2 + length);
+        frame[0] = this.SYNC_BYTE;
+        frame[1] = length;
+        frame[2] = type;
+        frame[3] = dest;
+        frame[4] = origin;
+        if (payload && payloadLen > 0) {
+            frame.set(payload, 5);
+        }
+        // Calculate CRC over type, dest, origin, and payload
+        const crcData = frame.slice(2, 2 + length - 1);
+        frame[2 + length - 1] = this.calculateCRC(crcData);
+        return frame;
+    },
+
+    // Parse a CRSF frame
+    parseFrame: function(data) {
+        if (data.length < 4 || data[0] !== this.SYNC_BYTE) {
+            return null;
+        }
+        const length = data[1];
+        if (data.length < length + 2) {
+            return null;
+        }
+        const type = data[2];
+        let dest = 0, origin = 0, payload;
+        if (type >= 0x28) {
+            dest = data[3];
+            origin = data[4];
+            // Payload is from byte 5 to end, excluding CRC (last byte)
+            payload = data.slice(5, length + 1);
+        } else {
+            // Non-extended frame: payload from byte 3, excluding CRC
+            payload = data.slice(3, length + 1);
+        }
+        return { type, dest, origin, payload };
+    },
+
+    // Read null-terminated string from Uint8Array at offset
+    readString: function(data, offset) {
+        let str = '';
+        let i = offset;
+        while (i < data.length && data[i] !== 0) {
+            str += String.fromCharCode(data[i]);
+            i++;
+        }
+        return { value: str, nextOffset: i + 1 };
+    }
+};
+
+// CRSF Parameters State Machine
+const CrsfParams = {
+    ws: null,
+    devices: [],
+    selectedDevice: null,
+    parameters: [],
+    parameterCount: 0,
+    loadedCount: 0,
+    currentFolder: 0,
+    folderStack: [],
+    pendingChunks: [],
+    pendingParamNumber: 0,
+    pendingChunkNumber: 0,
+    isLoading: false,
+    initialized: false,
+    scanTimeout: null,
+    paramTimeout: null,
+    originAddress: CRSF.ADDR_RADIO_TRANSMITTER,
+    commandPopup: null,           // Currently executing command
+    commandPollInterval: null,    // Interval for polling command status
+    linkstatPollInterval: null,   // Interval for polling link statistics
+    elrsFlags: 0,                 // Current ELRS status flags (matching LUA)
+    elrsFlagsInfo: '',            // Current ELRS error message (matching LUA)
+
+    // Initialize the parameters UI (only once)
+    init: function() {
+        if (this.initialized) return;
+        this.initialized = true;
+
+        const scanBtn = _('scan_devices');
+        if (scanBtn) {
+            scanBtn.addEventListener('click', () => this.scanDevices());
+        }
+        const reloadBtn = _('reload_params');
+        if (reloadBtn) {
+            reloadBtn.addEventListener('click', () => this.loadParameters());
+        }
+        const backBtn = _('params_back');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => this.navigateBack());
+        }
+    },
+
+    // Connect WebSocket
+    connect: function() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve, reject) => {
+            this.ws = new WebSocket('ws://' + window.location.hostname + '/crsf');
+            this.ws.binaryType = 'arraybuffer';
+            this.ws.onopen = () => {
+                resolve();
+            };
+            this.ws.onclose = () => {
+                this.ws = null;
+            };
+            this.ws.onerror = (e) => {
+                console.error('CRSF WebSocket error', e);
+                reject(e);
+            };
+            this.ws.onmessage = (e) => this.handleMessage(e);
+        });
+    },
+
+    // Handle incoming WebSocket message
+    handleMessage: function(event) {
+        const data = new Uint8Array(event.data);
+        const frame = CRSF.parseFrame(data);
+        if (!frame) return;
+
+        switch (frame.type) {
+            case CRSF.DEVICE_INFO:
+                this.handleDeviceInfo(frame);
+                break;
+            case CRSF.PARAM_ENTRY:
+                this.handleParamEntry(frame);
+                break;
+            case CRSF.ELRS_STATUS:
+                this.handleELRSStatus(frame);
+                break;
+        }
+    },
+
+    // Handle ELRS status messages (including error popups)
+    // Matching LUA parseElrsInfoMessage behavior (lines 496-515)
+    handleELRSStatus: function(frame) {
+        if (!this.selectedDevice || frame.origin !== this.selectedDevice.address) {
+            return;
+        }
+
+        const payload = frame.payload;
+        if (payload.length < 4) {
+            return;
+        }
+
+        // Parse ELRS status structure (matching LUA):
+        // uint8_t pktsBad        (offset 0)
+        // uint16_t pktsGood      (offset 1-2, big-endian)
+        // uint8_t flags          (offset 3)
+        // char msg[]             (offset 4+, null-terminated string)
+
+        // Extract bad/good packet counts (matching LUA lines 503-504)
+        const badPkt = payload[0];
+        const goodPkt = (payload[1] * 256) + payload[2];  // Big-endian uint16
+        const newFlags = payload[3];
+
+        // Extract error message if present (starts at offset 4)
+        let msg = '';
+        if (payload.length > 4) {
+            const msgResult = CRSF.readString(payload, 4);
+            msg = msgResult.value;
+        }
+
+        // Update the Bad/Good counter display (matching LUA line 514)
+        // LUA shows "badPkt/goodPkt   state" where state is "C" if connected, "-" otherwise
+        // LUA line 513: bit32.btest(elrsFlags, 1) checks if bit 0 (0x01) is set
+        const isConnected = (newFlags & 0x01);  // bit 0 indicates connected
+
+        // Create styled outline chip components using MUI colors
+        const connectionChip = isConnected
+            ? '<span style="display: inline-block; padding: 2px 12px; border-radius: 16px; background-color: transparent; border: 1px solid #4caf50; color: #4caf50; font-size: 0.75em; margin-right: 8px;">RX Connected</span>'
+            : '<span style="display: inline-block; padding: 2px 12px; border-radius: 16px; background-color: transparent; border: 1px solid #f44336; color: #f44336; font-size: 0.75em; margin-right: 8px;">RX Disconnected</span>';
+
+        const counterChip = `<span style="display: inline-block; padding: 2px 12px; border-radius: 16px; background-color: transparent; border: 1px solid #9e9e9e; color: #9e9e9e; font-size: 0.75em;">${badPkt}/${goodPkt}</span>`;
+
+        const linkstatElement = _('params_linkstat');
+        const statusRow = _('params_status');
+        if (linkstatElement) {
+            linkstatElement.innerHTML = connectionChip + counterChip;
+            // Show the status row when we have link stats
+            if (statusRow) {
+                statusRow.style.display = 'block';
+            }
+        }
+
+        // If flags are changing, show popup immediately (matching LUA line 507-510)
+        const flagsChanged = newFlags !== this.elrsFlags;
+
+        // Update stored flags and message
+        this.elrsFlags = newFlags;
+        this.elrsFlagsInfo = msg;
+
+        // Show error popup if flags indicate warning/error (> 0x1F) and flags changed
+        // Matching LUA line 708: if elrsFlags > 0x1F then
+        if (flagsChanged && newFlags > 0x1F && msg && msg.length > 0) {
+            cuteAlert({
+                type: 'error',
+                title: 'Error',
+                message: msg,
+                confirmText: 'OK'
+            }).then(() => {
+                // When user acknowledges error, send command to clear it
+                // Matching LUA line 710: crossfireTelemetryPush(0x2D, { deviceId, handsetId, 0x2E, 0x00 })
+                const clearCmd = new Uint8Array([0x2E, 0x00]);
+                const clearFrame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, clearCmd);
+                this.ws.send(clearFrame);
+            });
+        }
+    },
+
+    // Handle device info response
+    handleDeviceInfo: function(frame) {
+        // Only process device info during scanning or if it's from our selected device
+        // Device info responses come after we send a ping, so ignore spurious ones
+        if (!this.scanTimeout && (!this.selectedDevice || frame.origin !== this.selectedDevice.address)) {
+            return;
+        }
+
+        const payload = frame.payload;
+        // Parse device name (null-terminated string)
+        const nameResult = CRSF.readString(payload, 0);
+        const name = nameResult.value;
+        let offset = nameResult.nextOffset;
+
+        // Parse device info fields
+        const view = new DataView(payload.buffer, payload.byteOffset, payload.length);
+        const serialNumber = view.getUint32(offset, false); offset += 4;
+        const hardwareId = view.getUint32(offset, false); offset += 4;
+        const firmwareId = view.getUint32(offset, false); offset += 4;
+        const parametersTotal = payload[offset++];
+        const parameterVersion = payload[offset++];
+
+        // Check if this is an ELRS device (matching LUA line 406)
+        // SerialNumber = 'ELRS' = 0x454C5253
+        const isElrs = serialNumber === 0x454C5253;
+
+        const device = {
+            name,
+            address: frame.origin,
+            serialNumber,
+            hardwareId,
+            firmwareId,
+            parametersTotal,
+            parameterVersion,
+            isElrs
+        };
+
+        // Update or add device to list
+        const existingIndex = this.devices.findIndex(d => d.address === device.address);
+        if (existingIndex >= 0) {
+            this.devices[existingIndex] = device;
+        } else {
+            this.devices.push(device);
+        }
+        this.renderDeviceList();
+    },
+
+    // Handle parameter entry response
+    handleParamEntry: function(frame) {
+        // Verify this response is from our selected device
+        if (!this.selectedDevice || frame.origin !== this.selectedDevice.address) {
+            return;
+        }
+
+        const payload = frame.payload;
+        if (payload.length < 2) return;
+
+        const paramNumber = payload[0];
+        const chunksRemaining = payload[1];
+        const chunkData = payload.slice(2);
+
+        // Verify this is the response we're waiting for
+        // Accept if it matches pending param OR if it's a command we're polling
+        const isCommandPoll = this.commandPopup && paramNumber === this.commandPopup.paramNumber;
+        if (paramNumber !== this.pendingParamNumber && !isCommandPoll) {
+            console.warn('Unexpected param response:', paramNumber, 'expected:', this.pendingParamNumber, 'command poll:', isCommandPoll);
+            return;
+        }
+
+        // Valid response received, clear timeout
+        clearTimeout(this.paramTimeout);
+        this.paramTimeout = null;
+
+        // Add chunk to pending
+        this.pendingChunks.push(chunkData);
+
+        if (chunksRemaining === 0) {
+            // All chunks received, combine and parse
+            let totalLen = 0;
+            this.pendingChunks.forEach(c => totalLen += c.length);
+            const fullData = new Uint8Array(totalLen);
+            let pos = 0;
+            this.pendingChunks.forEach(c => {
+                fullData.set(c, pos);
+                pos += c.length;
+            });
+            this.pendingChunks = [];
+
+            // Parse parameter
+            const param = this.parseParameter(paramNumber, fullData);
+            if (param) {
+                this.parameters[paramNumber] = param;
+                if (this.isLoading) {
+                    this.loadedCount++;
+                    this.updateLoadingProgress();
+                }
+
+                // Handle command status updates
+                if (param.type === CRSF.PARAM_TYPE_COMMAND && this.commandPopup && this.commandPopup.paramNumber === paramNumber) {
+                    this.handleCommandStatusUpdate(param);
+                }
+            }
+
+            // If we have a reload single callback (reloading after write), call it
+            if (this.reloadSingleCallback) {
+                const callback = this.reloadSingleCallback;
+                this.reloadSingleCallback = null;
+                callback();
+            }
+            // If we have a retry callback (retrying missing params), call it
+            else if (this.retryMissingCallback) {
+                const callback = this.retryMissingCallback;
+                this.retryMissingCallback = null;
+                callback();
+            } else if (this.isLoading) {
+                // Normal sequential loading - request next parameter if not done
+                if (this.loadedCount < this.parameterCount) {
+                    this.requestNextParameter();
+                } else {
+                    // All parameters loaded
+                    this.retryMissingParameters();
+                }
+            }
+        } else {
+            // Request next chunk
+            this.pendingChunkNumber = this.pendingChunks.length;
+            this.requestParameter(paramNumber, this.pendingChunkNumber);
+        }
+    },
+
+    // Parse a complete parameter
+    parseParameter: function(number, data) {
+        if (data.length < 3) return null;
+
+        let offset = 0;
+        const parentFolder = data[offset++];
+        const typeByte = data[offset++];
+        const type = typeByte & 0x3F;
+        const hidden = (typeByte & CRSF.PARAM_HIDDEN) !== 0;
+
+        const nameResult = CRSF.readString(data, offset);
+        const name = nameResult.value;
+        offset = nameResult.nextOffset;
+
+        const param = {
+            number,
+            parentFolder,
+            type,
+            hidden,
+            name,
+            value: null,
+            options: null,
+            min: null,
+            max: null,
+            defaultValue: null,
+            unit: ''
+        };
+
+        const view = new DataView(data.buffer, data.byteOffset, data.length);
+
+        switch (type) {
+            case CRSF.PARAM_TYPE_UINT8:
+                param.value = data[offset++];
+                param.min = data[offset++];
+                param.max = data[offset++];
+                param.defaultValue = data[offset++];
+                param.unit = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_INT8:
+                param.value = new Int8Array([data[offset++]])[0];
+                param.min = new Int8Array([data[offset++]])[0];
+                param.max = new Int8Array([data[offset++]])[0];
+                param.defaultValue = new Int8Array([data[offset++]])[0];
+                param.unit = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_TEXT_SELECTION:
+                const optionsResult = CRSF.readString(data, offset);
+                param.options = optionsResult.value.split(';');
+                offset = optionsResult.nextOffset;
+                param.value = data[offset++];
+                param.min = data[offset++];
+                param.max = data[offset++];
+                param.defaultValue = data[offset++];
+                param.unit = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_FOLDER:
+                // Folder has no additional data
+                break;
+
+            case CRSF.PARAM_TYPE_INFO:
+                param.value = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_COMMAND:
+                param.status = data[offset++];
+                param.timeout = data[offset++];
+                param.value = CRSF.readString(data, offset).value;
+                break;
+
+            case CRSF.PARAM_TYPE_STRING:
+                param.value = CRSF.readString(data, offset).value;
+                break;
+        }
+
+        return param;
+    },
+
+    // Scan for devices
+    scanDevices: async function() {
+        try {
+            await this.connect();
+        } catch (e) {
+            cuteAlert({
+                type: 'error',
+                title: 'Connection Error',
+                message: 'Failed to connect to CRSF WebSocket'
+            });
+            return;
+        }
+
+        this.devices = [];
+        this.renderDeviceList();
+        _('scan_devices').disabled = true;
+        _('scan_devices').textContent = 'Scanning...';
+
+        // Send device ping
+        const frame = CRSF.buildFrame(CRSF.DEVICE_PING, CRSF.ADDR_BROADCAST, this.originAddress, new Uint8Array(0));
+        this.ws.send(frame);
+
+        // Wait for responses
+        this.scanTimeout = setTimeout(() => {
+            _('scan_devices').disabled = false;
+            _('scan_devices').textContent = 'Reload';
+            if (this.devices.length === 0) {
+                _('device_list').innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
+            }
+        }, 2000);
+    },
+
+    // Select a device
+    selectDevice: function(device) {
+        // Stop any active polling
+        this.stopCommandPolling();
+        this.stopLinkstatPolling();
+
+        this.selectedDevice = device;
+        this.currentFolder = 0;
+        this.folderStack = [];
+        _('params_device_name').textContent = device.name;
+        _('reload_params').disabled = false;
+        _('params_breadcrumb').style.display = 'none';
+
+        // Set correct handset ID (matching LUA lines 385-386)
+        // deviceIsELRS_TX = device.isElrs and devId == 0xEE or nil
+        // handsetId = deviceIsELRS_TX and 0xEF or 0xEA
+        const deviceIsELRS_TX = device.isElrs && device.address === CRSF.ADDR_TX;
+        this.originAddress = deviceIsELRS_TX ? CRSF.ADDR_ELRS_LUA : CRSF.ADDR_RADIO_TRANSMITTER;
+
+        // Clear linkstat display and hide status row until we start polling
+        const linkstatElement = _('params_linkstat');
+        const statusRow = _('params_status');
+        if (linkstatElement) {
+            linkstatElement.textContent = '';
+        }
+        if (statusRow) {
+            statusRow.style.display = 'none';
+        }
+
+        this.renderDeviceList();
+        this.loadParameters();
+    },
+
+    // Load parameters for selected device
+    loadParameters: async function() {
+        if (!this.selectedDevice) return;
+
+        try {
+            await this.connect();
+        } catch (e) {
+            return;
+        }
+
+        this.parameters = [];
+        this.parameterCount = this.selectedDevice.parametersTotal;
+        this.loadedCount = 0;
+        this.pendingChunks = [];
+        this.isLoading = true;
+        this.retryCount = 0;
+        this.maxRetries = 3;
+        this.missingParams = new Set();
+
+        _('params_content').style.display = 'none';
+        _('params_loading').style.display = 'block';
+
+        // Request first parameter (index 1, chunk 0)
+        this.pendingParamNumber = 1;
+        this.pendingChunkNumber = 0;
+        this.requestParameter(1, 0);
+    },
+
+    // Request a specific parameter chunk
+    requestParameter: function(paramNum, chunkNum) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        // Allow requests during initial loading OR during reload (when reloadSingleCallback is set)
+        if (!this.isLoading && !this.reloadSingleCallback) return;
+
+        this.pendingParamNumber = paramNum;
+        this.pendingChunkNumber = chunkNum;
+
+        const payload = new Uint8Array([paramNum, chunkNum]);
+        const frame = CRSF.buildFrame(CRSF.PARAM_READ, this.selectedDevice.address, this.originAddress, payload);
+        this.ws.send(frame);
+
+        // Set timeout for response
+        clearTimeout(this.paramTimeout);
+        this.paramTimeout = setTimeout(() => {
+            this.handleParameterTimeout(paramNum, chunkNum);
+        }, 3000);  // Reduced to 3 seconds for faster retries
+    },
+
+    // Handle parameter request timeout with retry logic
+    handleParameterTimeout: function(paramNum, chunkNum) {
+        // If we're reloading a single parameter (after write), don't retry - just skip it
+        if (this.reloadSingleCallback) {
+            this.pendingChunks = [];
+            const callback = this.reloadSingleCallback;
+            this.reloadSingleCallback = null;
+            callback();
+            return;
+        }
+
+        if (this.retryCount < this.maxRetries) {
+            // Retry the same parameter
+            this.retryCount++;
+            this.requestParameter(paramNum, chunkNum);
+        } else {
+            // Give up on this parameter after max retries
+            console.error('Failed to load parameter', paramNum, 'after', this.maxRetries, 'retries');
+            this.missingParams.add(paramNum);
+            this.retryCount = 0;
+            this.pendingChunks = [];
+
+            // If we have a retry callback (retrying missing params), call it
+            if (this.retryMissingCallback) {
+                const callback = this.retryMissingCallback;
+                this.retryMissingCallback = null;
+                callback();
+            } else {
+                // Normal sequential loading - try next parameter
+                const nextNum = paramNum + 1;
+                if (nextNum <= this.parameterCount) {
+                    this.requestParameter(nextNum, 0);
+                } else {
+                    // All parameters attempted, try to fill in missing ones
+                    this.retryMissingParameters();
+                }
+            }
+        }
+    },
+
+    // Request next parameter in sequence
+    requestNextParameter: function() {
+        if (!this.isLoading) return;
+
+        this.retryCount = 0;  // Reset retry count for new parameter
+        const nextNum = this.loadedCount + 1;
+        if (nextNum <= this.parameterCount) {
+            this.pendingChunks = [];
+            this.pendingParamNumber = nextNum;
+            this.pendingChunkNumber = 0;
+            this.requestParameter(nextNum, 0);
+        } else {
+            // All parameters loaded, check for missing ones
+            this.retryMissingParameters();
+        }
+    },
+
+    // Retry loading missing parameters
+    retryMissingParameters: function() {
+        if (this.missingParams.size > 0) {
+            const missing = Array.from(this.missingParams);
+            this.missingParams.clear();  // Clear for this retry pass
+            this.retryMissingParamsArray(missing, 0);
+        } else {
+            // No missing parameters, we're done
+            this.finishLoading();
+        }
+    },
+
+    // Recursively retry an array of missing parameters
+    retryMissingParamsArray: function(missingArray, index) {
+        if (index >= missingArray.length) {
+            // Finished retrying all missing parameters
+            if (this.missingParams.size > 0) {
+                // Still have missing params, give up and finish
+                console.warn('Could not load', this.missingParams.size, 'parameters after retry');
+            }
+            this.finishLoading();
+            return;
+        }
+
+        const paramNum = missingArray[index];
+        this.retryCount = 0;
+        this.pendingChunks = [];
+        this.pendingParamNumber = paramNum;
+        this.pendingChunkNumber = 0;
+
+        // Set a one-time handler for this retry
+        this.retryMissingCallback = () => {
+            this.retryMissingParamsArray(missingArray, index + 1);
+        };
+
+        this.requestParameter(paramNum, 0);
+    },
+
+    // Update loading progress
+    updateLoadingProgress: function() {
+        const loading = _('params_loading');
+        if (loading) {
+            loading.querySelector('p').textContent =
+                `Loading parameters... (${this.loadedCount}/${this.parameterCount})`;
+        }
+    },
+
+    // Finish loading and render
+    finishLoading: function() {
+        this.isLoading = false;
+        clearTimeout(this.paramTimeout);
+        this.paramTimeout = null;
+        this.retryMissingCallback = null;
+        _('params_loading').style.display = 'none';
+        _('params_content').style.display = 'block';
+        this.renderParameters();
+
+        // Start continuous link statistics polling (matching LUA behavior)
+        this.startLinkstatPolling();
+    },
+
+    // Navigate to a folder
+    navigateToFolder: function(folderId, folderName) {
+        this.folderStack.push({
+            id: folderId,           // The folder we're navigating TO (for label updates)
+            parentId: this.currentFolder,  // The folder we came FROM (for navigation back)
+            name: folderName
+        });
+        this.currentFolder = folderId;
+        this.updateBreadcrumb();
+        this.renderParameters();
+    },
+
+    // Navigate back
+    navigateBack: function() {
+        if (this.folderStack.length > 0) {
+            const prev = this.folderStack.pop();
+            this.currentFolder = prev.parentId;  // Go back to the parent
+            this.updateBreadcrumb();
+            this.renderParameters();
+        }
+    },
+
+    // Update breadcrumb display
+    updateBreadcrumb: function() {
+        const breadcrumb = _('params_breadcrumb');
+        const pathSpan = _('params_path');
+        if (this.folderStack.length > 0) {
+            breadcrumb.style.display = 'block';
+            pathSpan.textContent = this.folderStack.map(f => f.name).join(' > ');
+        } else {
+            breadcrumb.style.display = 'none';
+        }
+    },
+
+    // Update a parameter value
+    updateParameter: async function(paramNum, value) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+        const param = this.parameters[paramNum];
+        if (!param) return;
+
+        let serialized;
+        switch (param.type) {
+            case CRSF.PARAM_TYPE_UINT8:
+            case CRSF.PARAM_TYPE_TEXT_SELECTION:
+                serialized = new Uint8Array([paramNum, value]);
+                break;
+            case CRSF.PARAM_TYPE_INT8:
+                serialized = new Uint8Array([paramNum, value & 0xFF]);
+                break;
+            case CRSF.PARAM_TYPE_COMMAND:
+                // For commands, send param number and a value (usually 0 to execute)
+                serialized = new Uint8Array([paramNum, value]);
+                break;
+            default:
+                return;
+        }
+
+        const frame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, serialized);
+        this.ws.send(frame);
+
+        // Update local value optimistically
+        param.value = value;
+
+        // Reload related fields after write (like the LUA script does)
+        // Wait a short time for EEPROM to commit, then reload
+        setTimeout(() => {
+            this.reloadRelatedFields(param);
+        }, 200);
+    },
+
+    // Reload the current field and related fields after a parameter write
+    // This mimics the behavior of reloadRelatedFields() in the ELRS LUA script
+    reloadRelatedFields: function(param) {
+        // Don't reload if we're still loading or if there's already a reload in progress
+        if (this.isLoading || this.reloadSingleCallback || !this.selectedDevice) {
+            return;
+        }
+
+        const reloadQueue = [];
+
+        // Reload the parent folder to update its description
+        if (param.parentFolder && param.parentFolder > 0) {
+            const parentParam = this.parameters[param.parentFolder];
+            if (parentParam) {
+                reloadQueue.push(param.parentFolder);
+            }
+        }
+
+        // Reload all editable fields at the same level
+        this.parameters.forEach((p, idx) => {
+            if (!p || idx === 0) return; // Skip empty slots and index 0
+
+            // Skip the current field (will be added at the end)
+            if (idx === param.number) return;
+
+            // Only reload fields in the same folder that are editable
+            if (p.parentFolder === param.parentFolder) {
+                const isEditable = p.type < CRSF.PARAM_TYPE_STRING || p.type === CRSF.PARAM_TYPE_FOLDER;
+                if (isEditable) {
+                    reloadQueue.push(idx);
+                }
+            }
+        });
+
+        // Reload the current field last
+        reloadQueue.push(param.number);
+
+        // Start reloading the queue
+        this.reloadQueuedParameters(reloadQueue, 0);
+    },
+
+    // Reload a queue of parameters sequentially
+    reloadQueuedParameters: function(queue, index) {
+        if (index >= queue.length) {
+            // Done reloading, refresh the UI
+            // Update folder names in the breadcrumb stack
+            // When a folder parameter is reloaded, its name may have changed (e.g., "TX Power (25mW)" -> "TX Power (50mW)")
+            this.folderStack.forEach((folder, idx) => {
+                const param = this.parameters[folder.id];
+                if (param && param.name !== folder.name) {
+                    this.folderStack[idx].name = param.name;
+                }
+            });
+            this.updateBreadcrumb();
+
+            this.renderParameters();
+            return;
+        }
+
+        const paramNum = queue[index];
+        this.pendingChunks = [];
+        this.pendingParamNumber = paramNum;
+        this.pendingChunkNumber = 0;
+
+        // Set a callback to continue with the next parameter after this one completes
+        this.reloadSingleCallback = () => {
+            this.reloadQueuedParameters(queue, index + 1);
+        };
+
+        this.requestParameter(paramNum, 0);
+    },
+
+    // Render device list
+    renderDeviceList: function() {
+        const container = _('device_list');
+        if (this.devices.length === 0) {
+            container.innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
+            return;
+        }
+
+        let html = '<div style="margin-top: 10px;">';
+        this.devices.forEach(device => {
+            const selected = this.selectedDevice && this.selectedDevice.address === device.address;
+            const deviceJson = JSON.stringify(device).replace(/"/g, '&quot;');
+            html += `
+                <div class="device-item" onclick="CrsfParams.selectDevice(${deviceJson})" style="
+                    padding: 12px;
+                    margin-bottom: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    background: ${selected ? '#e3f2fd' : '#fff'};
+                ">
+                    <div style="font-weight: bold; margin-bottom: 4px;">${device.name}</div>
+                    <div style="font-size: 0.85em; color: #666;">
+                        ID: 0x${device.address.toString(16).toUpperCase()}<br/>
+                        Params: ${device.parametersTotal}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    },
+
+    // Render parameters
+    renderParameters: function() {
+        const container = _('params_content');
+        const params = this.parameters.filter(p => p && p.parentFolder === this.currentFolder && !p.hidden);
+
+        if (params.length === 0) {
+            container.innerHTML = '<p style="color: #999; text-align: center;">No parameters in this folder</p>';
+            return;
+        }
+
+        let html = '<table class="mui-table" style="width: 100%;">';
+        params.forEach(param => {
+            html += '<tr>';
+            html += `<td style="width: 40%; font-weight: 500; vertical-align: middle;">${param.name}</td>`;
+            html += '<td style="width: 60%;">';
+            html += this.renderParamControl(param);
+            html += '</td></tr>';
+        });
+        html += '</table>';
+        container.innerHTML = html;
+    },
+
+    // Render control for a parameter
+    renderParamControl: function(param) {
+        switch (param.type) {
+            case CRSF.PARAM_TYPE_UINT8:
+            case CRSF.PARAM_TYPE_INT8:
+                const unit = param.unit ? ` <span style="color: #666; font-size: 0.9em;">${param.unit}</span>` : '';
+                return `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="number"
+                            value="${param.value}"
+                            min="${param.min}"
+                            max="${param.max}"
+                            onchange="CrsfParams.updateParameter(${param.number}, parseInt(this.value))"
+                            style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px; max-width: 100px;">
+                        ${unit}
+                        <span style="color: #999; font-size: 0.85em;">[${param.min}-${param.max}]</span>
+                    </div>
+                `;
+
+            case CRSF.PARAM_TYPE_TEXT_SELECTION:
+                const selUnit = param.unit ? ` <span style="color: #666; font-size: 0.9em;">${param.unit}</span>` : '';
+                let options = '';
+                param.options.forEach((opt, i) => {
+                    // Skip empty or whitespace-only options (like the ELRS LUA script does)
+                    if (opt.trim().length > 0) {
+                        options += `<option value="${i}" ${i === param.value ? 'selected' : ''}>${opt}</option>`;
+                    }
+                });
+                return `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <select onchange="CrsfParams.updateParameter(${param.number}, parseInt(this.value))"
+                            style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            ${options}
+                        </select>
+                        ${selUnit}
+                    </div>
+                `;
+
+            case CRSF.PARAM_TYPE_FOLDER:
+                return `<button class="mui-btn mui-btn--primary" onclick="CrsfParams.navigateToFolder(${param.number}, '${param.name.replace(/'/g, "\\'")}')">
+                        Enter
+                    </button>`;
+
+            case CRSF.PARAM_TYPE_INFO:
+                return `<span style="color: #666;">${param.value || ''}</span>`;
+
+            case CRSF.PARAM_TYPE_COMMAND:
+                // Don't change button text/state - just show the value like LUA does
+                return `<button class="mui-btn mui-btn--primary"
+                        onclick="CrsfParams.executeCommand(${param.number}, '${param.name.replace(/'/g, "\\'")}')">${param.value || 'Execute'}</button>`;
+
+            case CRSF.PARAM_TYPE_STRING:
+                return `
+                    <input type="text"
+                        value="${param.value || ''}"
+                        onchange="CrsfParams.updateParameter(${param.number}, this.value)"
+                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                `;
+
+            default:
+                return `<span style="color: #999;">Unsupported type (${param.type})</span>`;
+        }
+    },
+
+    // Start continuous link statistics polling (like ELRS LUA does)
+    startLinkstatPolling: function() {
+        // Don't poll if already polling
+        if (this.linkstatPollInterval) return;
+
+        // Poll every 1 second (matching LUA's 100 ticks)
+        this.linkstatPollInterval = setInterval(() => {
+            this.pollLinkstat();
+        }, 1000);
+
+        // Do initial poll immediately
+        this.pollLinkstat();
+    },
+
+    // Stop link statistics polling
+    stopLinkstatPolling: function() {
+        if (this.linkstatPollInterval) {
+            clearInterval(this.linkstatPollInterval);
+            this.linkstatPollInterval = null;
+
+            // Clear linkstat display and hide status row when polling stops
+            const linkstatElement = _('params_linkstat');
+            const statusRow = _('params_status');
+            if (linkstatElement) {
+                linkstatElement.textContent = '';
+            }
+            if (statusRow) {
+                statusRow.style.display = 'none';
+            }
+        }
+    },
+
+    // Poll link statistics by requesting parameter 0 (matching LUA behavior)
+    pollLinkstat: function() {
+        if (!this.selectedDevice || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.stopLinkstatPolling();
+            return;
+        }
+
+        // Request link statistics by sending PARAM_WRITE to param 0 with value 0
+        // LUA line 567: crossfireTelemetryPush(0x2D, { deviceId, handsetId, 0x0, 0x0 })
+        // This triggers the firmware to send back an ELRS_STATUS (0x2E) frame
+        const payload = new Uint8Array([0, 0]);
+        const frame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, payload);
+        this.ws.send(frame);
+    },
+
+    // Execute a command parameter
+    executeCommand: function(paramNumber, paramName) {
+        const param = this.parameters[paramNumber];
+        if (!param || param.type !== CRSF.PARAM_TYPE_COMMAND) {
+            return;
+        }
+
+        // Start the command execution by sending status=1
+        const serialized = new Uint8Array([paramNumber, 1]);
+        const frame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, serialized);
+        this.ws.send(frame);
+
+        // Track the executing command
+        this.commandPopup = {
+            paramNumber: paramNumber,
+            paramName: paramName,
+            timeout: param.timeout || 50  // Use parameter timeout, default to 50 (0.5s) like LUA
+        };
+
+        // Poll command status using the parameter's timeout value (in 10ms units)
+        // LUA uses timeout directly as ticks (10ms each), so multiply by 10 for milliseconds
+        // IMPORTANT: LUA waits for the timeout period BEFORE the first poll (line 352)
+        // Don't poll immediately - let the interval handle it
+        const pollInterval = this.commandPopup.timeout * 10;
+        this.commandPollInterval = setInterval(() => {
+            this.pollCommandStatus(paramNumber);
+        }, pollInterval);
+    },
+
+    // Poll the status of an executing command by requesting the parameter
+    pollCommandStatus: function(paramNumber) {
+        if (!this.commandPopup || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.stopCommandPolling();
+            return;
+        }
+
+        // Poll command status by sending PARAM_WRITE with status=6 (lcsQuery)
+        // LUA line 558: crossfireTelemetryPush(0x2D, { deviceId, handsetId, fieldPopup.id, 6 })
+        const payload = new Uint8Array([paramNumber, 6]);
+        const frame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, payload);
+        this.ws.send(frame);
+    },
+
+    // Stop polling command status
+    stopCommandPolling: function() {
+        if (this.commandPollInterval) {
+            clearInterval(this.commandPollInterval);
+            this.commandPollInterval = null;
+        }
+        this.commandPopup = null;
+    },
+
+    // Handle command status updates (matching LUA runPopupPage behavior)
+    handleCommandStatusUpdate: function(param) {
+        const status = param.status;
+
+        // Status 0: Command stopped (matching LUA line 786-789)
+        if (status === 0) {
+            this.stopCommandPolling();
+            return;
+        }
+
+        // Status 2: Command running (matching LUA line 800-810)
+        if (status === 2) {
+            // Could show a running indicator here if desired
+            return;
+        }
+
+        // Status 3: Confirmation required (matching LUA line 790-799)
+        if (status === 3) {
+            // Stop polling while waiting for user response (LUA stops polling when status=3)
+            if (this.commandPollInterval) {
+                clearInterval(this.commandPollInterval);
+                this.commandPollInterval = null;
+            }
+
+            cuteAlert({
+                type: 'question',
+                title: 'Confirmation Required',
+                message: param.value || 'Press OK to confirm',
+                confirmText: 'OK',
+                cancelText: 'Cancel'
+            }).then((result) => {
+                if (result === 'confirm') {
+                    // Send status=4 (confirmed) - matching LUA line 794-796
+                    const serialized = new Uint8Array([param.number, 4]);
+                    const frame = CRSF.buildFrame(CRSF.PARAM_WRITE, this.selectedDevice.address, this.originAddress, serialized);
+                    this.ws.send(frame);
+
+                    // Resume polling
+                    const pollInterval = this.commandPopup.timeout * 10;
+                    this.commandPollInterval = setInterval(() => {
+                        this.pollCommandStatus(param.number);
+                    }, pollInterval);
+                } else {
+                    // LUA just clears fieldPopup when cancelling confirmation (line 797-798)
+                    // Does NOT send status=5 for confirmation cancel
+                    this.commandPopup = null;
+                }
+            });
+            return;
+        }
+    }
+};
+
+// Initialize CRSF Parameters when tab is shown
+if (_('params_tab')) {
+    _('params_tab').addEventListener('mui.tabs.showstart', function() {
+        CrsfParams.init();
+    });
+    // Initialize and auto-scan on page load
+    CrsfParams.init();
+    CrsfParams.scanDevices();
 }

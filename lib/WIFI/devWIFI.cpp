@@ -52,6 +52,7 @@ extern wifi_service_t wifiService;
 #if defined(MAVLINK_ENABLED)
 extern MAVLink mavlink;
 #endif
+#include "CrsfPassthrough.h"
 #elif defined(TARGET_TIMER_BACKPACK)
 extern TimerBackpackConfig config;
 #else
@@ -61,21 +62,48 @@ extern unsigned long rebootTime;
 
 #if defined(AAT_BACKPACK)
 static const char *myHostname = "elrs_aat";
-static const char *wifi_ap_ssid = "ExpressLRS AAT Backpack";
+static char wifi_ap_ssid[33]; // will be set by user config or default
 #elif defined(TARGET_VRX_BACKPACK)
 static const char *myHostname = "elrs_vrx";
-static const char *wifi_ap_ssid = "ExpressLRS VRx Backpack";
+static char wifi_ap_ssid[33]; // will be set by user config or default
 #elif defined(TARGET_TX_BACKPACK)
 static const char *myHostname = "elrs_txbp";
-static char wifi_ap_ssid[33]; // will be set depending on wifiService
+static char wifi_ap_ssid[33]; // will be set by user config or default
 
 #elif defined(TARGET_TIMER_BACKPACK)
 static const char *myHostname = "elrs_timer";
-static const char *wifi_ap_ssid = "ExpressLRS Timer Backpack";
+static char wifi_ap_ssid[33]; // will be set by user config or default
 #else
 #error Unknown target
 #endif
-static const char *wifi_ap_password = "expresslrs";
+static const char *wifi_ap_default_password = "expresslrs";
+static char wifi_ap_password[65]; // will be set by user config or default
+
+// Helper function to get the default AP SSID based on backpack type and service
+static void getDefaultApSsid(char* buffer, size_t bufferSize)
+{
+#if defined(AAT_BACKPACK)
+  strncpy(buffer, "ExpressLRS AAT Backpack", bufferSize - 1);
+#elif defined(TARGET_VRX_BACKPACK)
+  strncpy(buffer, "ExpressLRS VRx Backpack", bufferSize - 1);
+#elif defined(TARGET_TX_BACKPACK)
+  if (wifiService == WIFI_SERVICE_UPDATE)
+  {
+    strncpy(buffer, "ExpressLRS TX Backpack", bufferSize - 1);
+  }
+  else if (wifiService == WIFI_SERVICE_MAVLINK_TX)
+  {
+    snprintf(buffer, bufferSize, "ExpressLRS TX Backpack %02X%02X%02X",
+      firmwareOptions.uid[3],
+      firmwareOptions.uid[4],
+      firmwareOptions.uid[5]
+    );
+  }
+#elif defined(TARGET_TIMER_BACKPACK)
+  strncpy(buffer, "ExpressLRS Timer Backpack", bufferSize - 1);
+#endif
+  buffer[bufferSize - 1] = '\0';
+}
 
 static char station_ssid[33];
 static char station_password[65];
@@ -100,6 +128,11 @@ static AsyncWebServer server(80);
 static AsyncWebSocket ws("/ws");
 extern bool sendHeadTrackingChangesToVrx;
 extern bool headTrackingEnabled;
+#endif
+#if defined(TARGET_TX_BACKPACK)
+static AsyncWebSocket crsfWs("/crsf");
+// Callback to send CRSF frames to UART (set by Tx_main.cpp)
+static void (*crsfUartSendCallback)(uint8_t* data, uint8_t len) = nullptr;
 #endif
 static bool servicesStarted = false;
 
@@ -222,6 +255,63 @@ static void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, Aw
 }
 #endif
 
+#if defined(TARGET_TX_BACKPACK)
+/**
+ * CRSF WebSocket event handler.
+ * Handles binary CRSF frames from the browser and forwards them to UART.
+ */
+static void onCrsfWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len)
+{
+    if (type == WS_EVT_CONNECT) {
+        DBGLN("CRSF WebSocket client connected");
+    }
+    else if (type == WS_EVT_DISCONNECT) {
+        DBGLN("CRSF WebSocket client disconnected");
+    }
+    else if (type == WS_EVT_DATA) {
+        AwsFrameInfo *info = (AwsFrameInfo*)arg;
+        // Only handle binary messages that are complete in one frame
+        if (info->final && info->index == 0 && info->len == len && info->opcode == WS_BINARY) {
+            // Validate it looks like a CRSF frame
+            if (len >= 4 && data[0] == CRSF_SYNC_BYTE && CrsfPassthrough::validateFrame(data, len)) {
+                // Forward to UART via callback
+                if (crsfUartSendCallback != nullptr) {
+                    crsfUartSendCallback(data, len);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Register callback for sending CRSF frames to UART.
+ * Called by Tx_main.cpp during initialization.
+ */
+void crsfWsRegisterUartCallback(void (*callback)(uint8_t* data, uint8_t len))
+{
+    crsfUartSendCallback = callback;
+}
+
+/**
+ * Send a CRSF frame to all connected WebSocket clients.
+ * Called by Tx_main.cpp when a CRSF frame is received from UART.
+ */
+void crsfWsSendFrame(uint8_t* data, uint8_t len)
+{
+    if (servicesStarted && crsfWs.count() > 0) {
+        crsfWs.binaryAll(data, len);
+    }
+}
+
+/**
+ * Check if CRSF WebSocket has connected clients.
+ */
+bool crsfWsHasClients()
+{
+    return servicesStarted && crsfWs.count() > 0;
+}
+#endif
+
 static void WebUpdateSendContent(AsyncWebServerRequest *request)
 {
   for (size_t i=0 ; i<ARRAY_SIZE(files) ; i++) {
@@ -258,6 +348,24 @@ static void GetConfiguration(AsyncWebServerRequest *request)
   json["config"]["ssid"] = station_ssid;
   json["config"]["mode"] = wifiMode == WIFI_STA ? "STA" : "AP";
   json["config"]["product_name"] = firmwareOptions.product_name;
+
+  // Send the custom AP SSID if configured, otherwise send the default SSID
+  const char* customApSsid = config.GetWiFiApSSID();
+  if (customApSsid[0] != 0) {
+    json["config"]["ap_ssid"] = customApSsid;
+  } else {
+    char defaultSsid[33];
+    getDefaultApSsid(defaultSsid, sizeof(defaultSsid));
+    json["config"]["ap_ssid"] = defaultSsid;
+  }
+
+  // Send the custom AP password if configured, otherwise send the default password
+  const char* customApPassword = config.GetWiFiApPassword();
+  if (customApPassword[0] != 0) {
+    json["config"]["ap_password"] = customApPassword;
+  } else {
+    json["config"]["ap_password"] = wifi_ap_default_password;
+  }
 
 #if defined(HAS_HEADTRACKING) || defined(SUPPORT_HEADTRACKING)
   json["config"]["head-tracking"] = true;
@@ -353,7 +461,7 @@ static void WebUpdateForget(AsyncWebServerRequest *request)
     String msg = String("Temporary network forgotten, attempting to connect to network '") + station_ssid + "'";
     sendResponse(request, msg);
     changeWifiMode(WIFI_STA);
-    
+
   }
   else {
     station_ssid[0] = 0;
@@ -362,6 +470,58 @@ static void WebUpdateForget(AsyncWebServerRequest *request)
     sendResponse(request, msg);
     changeWifiMode(WIFI_AP);
   }
+}
+
+static void WebUpdateSetApSSID(AsyncWebServerRequest *request)
+{
+  String ap_ssid = request->arg("ap_ssid");
+
+  // Check for reset to default marker
+  if (ap_ssid == "___DEFAULT___") {
+    DBGLN("Resetting AP SSID to default");
+    config.SetWiFiApSSID("");  // Empty string = use default
+    config.Commit();
+    sendResponse(request, "WiFi AP SSID reset to default. Changes will take effect on next AP mode activation.");
+    return;
+  }
+
+  // Validate SSID length
+  if (ap_ssid.length() == 0 || ap_ssid.length() > 32) {
+    sendResponse(request, "Error: SSID must be between 1 and 32 characters");
+    return;
+  }
+
+  DBGLN("Setting AP SSID to '%s'", ap_ssid.c_str());
+  config.SetWiFiApSSID(ap_ssid.c_str());
+  config.Commit();
+
+  sendResponse(request, "WiFi AP SSID updated successfully. Changes will take effect on next AP mode activation.");
+}
+
+static void WebUpdateSetApPassword(AsyncWebServerRequest *request)
+{
+  String ap_password = request->arg("ap_password");
+
+  // Check for reset to default marker
+  if (ap_password == "___DEFAULT___") {
+    DBGLN("Resetting AP password to default");
+    config.SetWiFiApPassword("");  // Empty string = use default
+    config.Commit();
+    sendResponse(request, "WiFi AP password reset to default. Changes will take effect on next AP mode activation.");
+    return;
+  }
+
+  // Validate password length (WPA2 requires 8-63 characters)
+  if (ap_password.length() < 8 || ap_password.length() > 63) {
+    sendResponse(request, "Error: Password must be between 8 and 63 characters");
+    return;
+  }
+
+  DBGLN("Setting AP password");
+  config.SetWiFiApPassword(ap_password.c_str());
+  config.Commit();
+
+  sendResponse(request, "WiFi AP password updated successfully. Changes will take effect on next AP mode activation.");
 }
 
 static void WebUpdateHandleNotFound(AsyncWebServerRequest *request)
@@ -689,6 +849,8 @@ static void startServices()
   server.on("/config", HTTP_GET, GetConfiguration);
   server.on("/networks.json", WebUpdateSendNetworks);
   server.on("/sethome", WebUpdateSetHome);
+  server.on("/setapssid", WebUpdateSetApSSID);
+  server.on("/setappassword", WebUpdateSetApPassword);
   #if defined(MAVLINK_ENABLED)
   server.on("/setmavlink", WebUpdateSetMavLink);
   #endif
@@ -725,6 +887,11 @@ static void startServices()
   #if defined(HAS_HEADTRACKING)|| defined(SUPPORT_HEADTRACKING)
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
+  #endif
+
+  #if defined(TARGET_TX_BACKPACK)
+  crsfWs.onEvent(onCrsfWsEvent);
+  server.addHandler(&crsfWs);
   #endif
 
   server.begin();
@@ -770,6 +937,7 @@ static void HandleWebUpdate()
   if (changeMode != wifiMode && changeMode != WIFI_OFF && (now - changeTime) > 500) {
     switch(changeMode) {
       case WIFI_AP:
+      {
         DBGLN("Changing to AP mode");
         WiFi.disconnect();
         wifiMode = WIFI_AP;
@@ -780,21 +948,21 @@ static void HandleWebUpdate()
         #endif
         changeTime = now;
         WiFi.softAPConfig(apIP, apIP, netMsk);
-#if defined(TARGET_TX_BACKPACK)
-        if (wifiService == WIFI_SERVICE_UPDATE)
-        {
-          strcpy(wifi_ap_ssid, "ExpressLRS TX Backpack");
+        // Use custom SSID if configured, otherwise use default
+        const char* customSsid = config.GetWiFiApSSID();
+        if (customSsid[0] != 0) {
+          strcpy(wifi_ap_ssid, customSsid);
+        } else {
+          // Fall back to default SSID based on backpack type
+          getDefaultApSsid(wifi_ap_ssid, sizeof(wifi_ap_ssid));
         }
-        else if (wifiService == WIFI_SERVICE_MAVLINK_TX)
-        {
-          // Generate a unique SSID using config.address as hex
-          sprintf(wifi_ap_ssid, "ExpressLRS TX Backpack %02X%02X%02X",
-            firmwareOptions.uid[3],
-            firmwareOptions.uid[4],
-            firmwareOptions.uid[5]
-          );
+        // Use custom password if configured, otherwise use default
+        const char* customPassword = config.GetWiFiApPassword();
+        if (customPassword[0] != 0) {
+          strcpy(wifi_ap_password, customPassword);
+        } else {
+          strcpy(wifi_ap_password, wifi_ap_default_password);
         }
-#endif
         WiFi.softAP(wifi_ap_ssid, wifi_ap_password);
         WiFi.scanNetworks(true);
         startServices();
@@ -802,6 +970,7 @@ static void HandleWebUpdate()
         esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
         #endif
         break;
+      }
       case WIFI_STA:
         DBGLN("Connecting to home network '%s' '%s'", station_ssid, station_password);
         wifiMode = WIFI_STA;
