@@ -1414,7 +1414,7 @@ const CrsfParams = {
         // Wait for responses
         this.scanTimeout = setTimeout(() => {
             _('scan_devices').disabled = false;
-            _('scan_devices').textContent = 'Scan for Devices';
+            _('scan_devices').textContent = 'Reload';
             if (this.devices.length === 0) {
                 _('device_list').innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
             }
@@ -1767,7 +1767,7 @@ const CrsfParams = {
     renderDeviceList: function() {
         const container = _('device_list');
         if (this.devices.length === 0) {
-            container.innerHTML = '<p style="color: #999; text-align: center;">Click "Scan for Devices" to discover CRSF devices</p>';
+            container.innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
             return;
         }
 
@@ -2039,6 +2039,7 @@ if (_('params_tab')) {
     _('params_tab').addEventListener('mui.tabs.showstart', function() {
         CrsfParams.init();
     });
-    // Also initialize on page load in case tab is already active
+    // Initialize and auto-scan on page load
     CrsfParams.init();
+    CrsfParams.scanDevices();
 }
