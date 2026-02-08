@@ -174,57 +174,16 @@ jobs:
       - name: Create release bundle
         run: |
           cd dist
-          # Rename firmware folder to include version
           mv firmware backpack-${{ steps.version.outputs.VERSION }}
-
-          # Create versioned zip
           zip -r -9 ../backpack-${{ steps.version.outputs.VERSION }}.zip ./backpack-${{ steps.version.outputs.VERSION }}
           cd ..
-
-          # Create SHA256 checksum
           sha256sum backpack-${{ steps.version.outputs.VERSION }}.zip > backpack-${{ steps.version.outputs.VERSION }}.zip.sha256
 
-      - name: Create GitHub Release
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          name: TitanLRS Backpack ${{ steps.version.outputs.VERSION }}
-          body: |
-            # 🎒 TitanLRS Backpack ${{ steps.version.outputs.VERSION }}
-
-            Backpack firmware for TitanLRS - wireless ESP-NOW communication for TX/VRX modules.
-
-            ## 📦 Installation
-
-            Use the [TitanLRS Web Flasher](https://github.com/Titan-Dynamics/titan-web-flasher) for easy installation.
-
-            ## 📋 What's Included
-
-            - Backpack firmware binaries for all supported targets
-            - TX Backpack variants
-            - VRX Backpack variants
-            - Hardware definitions
-            - Python flasher tool
-
-            ## 🔧 Compatible With
-
-            TitanLRS firmware
-
-            ---
-
-            SHA256 Checksum:
-            ```
-            $(cat backpack-${{ steps.version.outputs.VERSION }}.zip.sha256)
-            ```
           files: |
             backpack-${{ steps.version.outputs.VERSION }}.zip
             backpack-${{ steps.version.outputs.VERSION }}.zip.sha256
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Release created
-        run: |
-          echo "✅ Backpack release created successfully!"
-          echo "📦 Version: ${{ steps.version.outputs.VERSION }}"
-          echo "🔗 URL: https://github.com/wvarty/TitanLRS-Backpack/releases/tag/${{ steps.version.outputs.VERSION }}"
