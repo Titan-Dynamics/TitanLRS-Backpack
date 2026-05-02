@@ -1,0 +1,317 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+	<title>TitanLRS TX Backpack WebUI</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" href="/styles/td.css" />
+	<link rel="stylesheet" href="/styles/td-extensions.css" />
+</head>
+
+<body class="td">
+	<div id="sidedrawer">
+		<div id="sidebar">
+			<div class="td-sidebar-header">
+				<div style="display:flex;align-items:center;gap:10px;">
+					<img class="td-logo-img" src="/td-logo.svg" alt="TitanLRS">
+					<span style="font-size:15px;font-weight:600;letter-spacing:-0.01em;color:var(--td-fg);">TitanLRS Backpack</span>
+				</div>
+			</div>
+			<nav id="sidebar-nav">
+				<div class="td-nav-section">TX Backpack</div>
+				<a id="params_tab" class="td-nav-item" href="#params">
+					<span class="td-icon"><svg viewBox="0 0 16 16"><path d="M3 4h6"/><path d="M11 4h2"/><circle cx="10" cy="4" r="1.5"/><path d="M3 8h2"/><path d="M7 8h6"/><circle cx="6" cy="8" r="1.5"/><path d="M3 12h8"/><circle cx="12" cy="12" r="1.5"/></svg></span>
+					Parameters
+				</a>
+				<a class="td-nav-item" href="#network">
+					<span class="td-icon"><svg viewBox="0 0 16 16"><path d="M2 6.5a9 9 0 0 1 12 0"/><path d="M4 9a6 6 0 0 1 8 0"/><path d="M6 11.5a3 3 0 0 1 4 0"/><circle cx="8" cy="13" r=".5" fill="currentColor"/></svg></span>
+					Network
+				</a>
+				<a class="td-nav-item" href="#mavlink">
+					<span class="td-icon"><svg viewBox="0 0 16 16"><path d="M2 8h3l2-5 2 10 2-5h3"/></svg></span>
+					MAVLink
+				</a>
+				<a class="td-nav-item" href="#firmware">
+					<span class="td-icon"><svg viewBox="0 0 16 16"><path d="M9 1L3 9h4l-1 6 6-8H8l1-6z"/></svg></span>
+					Firmware
+				</a>
+				<a id="tx_tab" class="td-nav-item" href="#tx">
+					<span class="td-icon"><svg viewBox="0 0 16 16"><path d="M3 11a5 5 0 0 1 10 0"/><path d="M5 11a3 3 0 0 1 6 0"/><circle cx="8" cy="11" r="1" fill="currentColor"/></svg></span>
+					TX
+				</a>
+			</nav>
+		</div>
+	</div>
+
+	<div id="topbar">
+		<button id="sidebar-toggle" class="td-btn td-btn-ghost td-btn-icon td-mobile-only" aria-label="Menu">
+			<span class="td-icon"><svg viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/></svg></span>
+		</button>
+		<div style="flex:1;display:flex;align-items:center;gap:6px;padding:0 var(--td-s-4);font-size:var(--td-fs-sm);color:var(--td-fg-mute);">
+			<span>Device</span>
+			<span style="color:var(--td-fg-faint);">/</span>
+			<span id="product_name">TX Backpack</span>
+			<span id="breadcrumb_sep" style="color:var(--td-fg-faint);">/</span>
+			<span id="breadcrumb_route" style="color:var(--td-fg);"></span>
+		</div>
+	</div>
+
+	<div id="main-wrapper">
+		<div id="main">
+
+			<!-- Parameters route -->
+			<section data-route="params">
+				<div class="td-two-col">
+					<div class="td-card" style="min-height:400px;">
+						<div class="td-card-header">
+							<span class="td-h4">Devices</span>
+							<button id="scan_devices" class="td-btn td-btn-sm">Reload</button>
+						</div>
+						<div id="device_list"></div>
+					</div>
+
+					<div class="td-card" style="min-height:400px;">
+						<div class="td-card-header" id="params_header">
+							<span class="td-h4" id="params_device_name">Select a device</span>
+							<button id="reload_params" class="td-btn td-btn-sm" disabled>Reload</button>
+						</div>
+						<div id="params_status" style="display:none;" class="td-params-status">
+							<span id="params_linkstat"></span>
+						</div>
+						<div id="params_breadcrumb" style="display:none;" class="td-card-row">
+							<button id="params_back" class="td-btn td-btn-sm">&larr; Back</button>
+							<span id="params_path" class="td-small td-mute"></span>
+						</div>
+						<div class="td-card-body">
+							<div id="params_content">
+								<p class="td-small td-mute td-center" style="margin-top:var(--td-s-6);">No device selected</p>
+							</div>
+							<div id="params_loading" style="display:none;text-align:center;margin-top:var(--td-s-6);">
+								<div class="td-spinner"></div>
+								<p class="td-small td-mute" style="margin-top:var(--td-s-2);">Loading parameters...</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Network route -->
+			<section data-route="network" hidden>
+				<div class="td-stack td-gap-3">
+					<div class="td-card">
+						<div class="td-card-header">
+							<span class="td-h4">Access Point SSID</span>
+						</div>
+							<form action="/setapssid" id="setapssid" method="POST" autocomplete="off">
+								<div class="td-card-row">
+									<span class="td-label">SSID</span>
+									<input type="text" id="ap_ssid" name="ap_ssid" placeholder="Access Point SSID" maxlength="32" required class="td-input"/>
+								</div>
+							</form>
+						<div style="padding:var(--td-s-3) var(--td-s-4);border-top:1px solid var(--td-line);display:flex;align-items:center;gap:var(--td-s-2);">
+							<div style="flex:1;"></div>
+							<button type="button" id="ap_ssid_reset" class="td-btn td-btn-danger">Reset to Default</button>
+							<input type="submit" form="setapssid" value="Save SSID" class="td-btn td-btn-primary">
+						</div>
+					</div>
+
+					<div class="td-card">
+						<div class="td-card-header">
+							<span class="td-h4">Access Point Password</span>
+							<span class="td-small td-mute">Minimum 8 characters</span>
+						</div>
+							<form action="/setappassword" id="setappassword" method="POST" autocomplete="off">
+								<div class="td-card-row">
+									<span class="td-label">Password</span>
+									<div style="position:relative;">
+										<input type="password" id="ap_password" name="ap_password" placeholder="Access Point Password" minlength="8" maxlength="63" required class="td-input" style="padding-right:40px;width:100%;box-sizing:border-box;"/>
+										<button type="button" id="ap_password_toggle" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--td-mute);">
+											<svg id="ap_password_eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+												<circle cx="12" cy="12" r="3"></circle>
+											</svg>
+											<svg id="ap_password_eye_off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+												<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+												<line x1="1" y1="1" x2="23" y2="23"></line>
+											</svg>
+										</button>
+									</div>
+								</div>
+							</form>
+						<div style="padding:var(--td-s-3) var(--td-s-4);border-top:1px solid var(--td-line);display:flex;align-items:center;gap:var(--td-s-2);">
+							<div style="flex:1;"></div>
+							<button type="button" id="ap_password_reset" class="td-btn td-btn-danger">Reset to Default</button>
+							<input type="submit" form="setappassword" value="Save Password" class="td-btn td-btn-primary">
+						</div>
+					</div>
+
+					<div id="apmode" style="display:none;">
+						<div class="td-card">
+							<div class="td-card-header">
+								<span class="td-h4">Join Home Network</span>
+								<span class="td-chip td-chip-info">AP Mode</span>
+							</div>
+							<div class="td-card-body">
+								<p class="td-body td-mute">Join a home network &mdash; the backpack will auto-connect when in range.</p>
+							</div>
+							<form action="/sethome" id="sethome" method="POST" autocomplete="off">
+								<div class="td-card-row">
+									<span class="td-label">SSID</span>
+									<div class="autocomplete" style="position:relative;">
+										<input id="network" type="text" name="network" placeholder="Network name" class="td-input"/>
+										<div id="loader" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);" class="td-spinner"></div>
+									</div>
+								</div>
+								<div class="td-card-row">
+									<span class="td-label">Password</span>
+									<input type="password" id="password" name="password" placeholder="Password" class="td-input"/>
+								</div>
+							</form>
+							<div style="padding:var(--td-s-3) var(--td-s-4);border-top:1px solid var(--td-line);display:flex;align-items:center;gap:var(--td-s-2);">
+								<div style="flex:1;"></div>
+								<button id="connect" class="td-btn td-btn-danger">Connect to <span id="homenet" class="td-mono"></span></button>
+								<input type="submit" form="sethome" value="Join" class="td-btn td-btn-primary">
+							</div>
+						</div>
+					</div>
+
+					<div id="stamode" style="display:none;">
+						<div class="td-card">
+							<div class="td-card-header">
+								<span class="td-h4">Home Network</span>
+								<span id="ssid" class="td-chip td-chip-ok td-mono"></span>
+							</div>
+							<div class="td-card-body">
+								<div class="td-stack td-gap-3">
+									<div>
+										<p class="td-small td-mute" style="margin-bottom:var(--td-s-2)">Forget home network and start access point</p>
+										<a id="forget" href="#" class="td-btn td-btn-danger">Forget</a>
+									</div>
+									<div>
+										<p class="td-small td-mute" style="margin-bottom:var(--td-s-2)">Disconnect and start access point</p>
+										<a id="access" href="#" class="td-btn">Disconnect</a>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- MAVLink route -->
+			<section data-route="mavlink" hidden>
+				<div class="td-stack td-gap-3">
+					<div class="td-card">
+						<div class="td-card-header">
+							<span class="td-h4">MAVLink Configuration</span>
+						</div>
+					<form action="/setmavlink" id="mavlink_form" method="POST" autocomplete="off">
+							<div class="td-card-row">
+								<span class="td-label">Send Port</span>
+								<input type="number" id="mavlink_send_port" name="send" placeholder="Send Port" class="td-input td-input-mono" style="max-width:140px;"/>
+							</div>
+							<div class="td-card-row">
+								<span class="td-label">Listen Port</span>
+								<input type="number" id="mavlink_listen_port" name="listen" placeholder="Listen Port" class="td-input td-input-mono" style="max-width:140px;"/>
+							</div>
+						</form>
+						<div style="padding:var(--td-s-3) var(--td-s-4);border-top:1px solid var(--td-line);display:flex;align-items:center;gap:var(--td-s-2);">
+							<div style="flex:1;"></div>
+							<button id="mavlink_reset_defaults" class="td-btn td-btn-danger">Reset Defaults</button>
+							<input type="submit" form="mavlink_form" value="Save Configuration" class="td-btn td-btn-primary">
+						</div>
+					</div>
+
+					<div class="td-card">
+						<div class="td-card-header">
+							<span class="td-h4">MAVLink Statistics</span>
+						</div>
+						<table class="td-table">
+							<tbody>
+								<tr><td>Packets Downlink</td><td id="mavlink_packets_down" class="td-mono"></td></tr>
+								<tr><td>Packets Uplink</td><td id="mavlink_packets_up" class="td-mono"></td></tr>
+								<tr><td>Drops Downlink</td><td id="mavlink_drops_down" class="td-mono"></td></tr>
+								<tr><td>Overflows Downlink</td><td id="mavlink_overflows_down" class="td-mono"></td></tr>
+								<tr><td>GCS IP Addresses</td><td id="mavlink_gcs_ip" class="td-mono"></td></tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</section>
+
+			<!-- Firmware route -->
+			<section data-route="firmware" hidden>
+				<div class="td-card">
+					<div class="td-card-header">
+						<span class="td-h4">Backpack Firmware Update</span>
+					</div>
+					<div class="td-card-body">
+						<p class="td-body td-mute" style="margin-bottom:var(--td-s-3)">Upload the correct firmware file. A bad flash may require USB/Serial recovery.</p>
+						<form id='upload_form_bp' method='POST' enctype='multipart/form-data'>
+							<div class="td-drop-zone" data-for="firmware_file_bp">
+								<span class="td-icon td-icon-lg">
+									<svg viewBox="0 0 16 16"><path d="M8 11V3"/><path d="M5 6l3-3 3 3"/><path d="M3 11v2h10v-2"/></svg>
+								</span>
+								<span class="td-drop-label">Click to select firmware, or drag and drop</span>
+								<span class="td-drop-filename"></span>
+							</div>
+							<input id='firmware_file_bp' type='file' name='update' style="display:none">
+							<div style="margin-top:var(--td-s-3);">
+								<input type='submit' value='Update' class='td-btn td-btn-primary td-btn-lg'>
+							</div>
+							<div style="margin-top:var(--td-s-3);">
+								<p id="status_bp" class="td-small td-mute"></p>
+								<progress id="progressBar_bp" value="0" max="100"></progress>
+							</div>
+						</form>
+					</div>
+				</div>
+			</section>
+
+			<!-- TX route -->
+			<section data-route="tx" hidden>
+				<div class="td-two-col">
+					<div class="td-card" style="min-height:400px;">
+						<div class="td-card-header">
+							<span class="td-h4">Devices</span>
+							<button id="scan_devices" class="td-btn td-btn-sm">Reload</button>
+						</div>
+						<div id="device_list"></div>
+					</div>
+
+					<div class="td-card" style="min-height:400px;">
+						<div class="td-card-header" id="params_header">
+							<span class="td-h4" id="params_device_name">Select a device</span>
+							<button id="reload_params" class="td-btn td-btn-sm" disabled>Reload</button>
+						</div>
+						<div id="params_status" style="display:none;" class="td-params-status">
+							<span id="params_linkstat"></span>
+						</div>
+						<div id="params_breadcrumb" style="display:none;" class="td-card-row">
+							<button id="params_back" class="td-btn td-btn-sm">&larr; Back</button>
+							<span id="params_path" class="td-small td-mute"></span>
+						</div>
+						<div class="td-card-body">
+							<div id="params_content">
+								<p class="td-small td-mute td-center" style="margin-top:var(--td-s-6);">No device selected</p>
+							</div>
+							<div id="params_loading" style="display:none;text-align:center;margin-top:var(--td-s-6);">
+								<div class="td-spinner"></div>
+								<p class="td-small td-mute" style="margin-top:var(--td-s-2);">Loading parameters...</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+		</div>
+	</div>
+
+	<div id="sidebar-backdrop"></div>
+
+<script src="/td.js"></script>
+<script src="/td-extensions.js"></script>
+<script src="/scan.js"></script>
+</body>
+</html>

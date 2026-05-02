@@ -191,23 +191,54 @@ static bool captivePortal(AsyncWebServerRequest *request)
   return false;
 }
 
-static struct {
-  const char *url;
-  const char *contentType;
-  const uint8_t* content;
-  const size_t size;
-} files[] = {
-  {"/mui.css", "text/css", (uint8_t *)MUI_CSS, sizeof(MUI_CSS)},
-  {"/elrs.css", "text/css", (uint8_t *)ELRS_CSS, sizeof(ELRS_CSS)},
-  {"/mui.js", "text/javascript", (uint8_t *)MUI_JS, sizeof(MUI_JS)},
-  {"/scan.js", "text/javascript", (uint8_t *)SCAN_JS, sizeof(SCAN_JS)},
-  {"/logo.svg", "image/svg+xml", (uint8_t *)LOGO_SVG, sizeof(LOGO_SVG)},
-#if defined(HAS_HEADTRACKING) || defined(SUPPORT_HEADTRACKING)
-  {"/airplane.obj", "text/plain", (uint8_t *)PLANE_OBJ, sizeof(PLANE_OBJ)},
-  {"/texture.gif", "image/gif", (uint8_t *)TEXTURE_GIF, sizeof(TEXTURE_GIF)},
-  {"/p5.js", "text/javascript", (uint8_t *)P5_JS, sizeof(P5_JS)},
-#endif
-};
+// Forward declaration — defined later in this file.
+static void WebUpdateHandleNotFound(AsyncWebServerRequest *request);
+
+// Serve any asset from the WEB_ASSETS[] table that lives in WebContent.h.
+// Root requests ("/") are mapped to the first HTML asset in the table.
+static void WebServeAsset(AsyncWebServerRequest *request)
+{
+  const String &urlPath = request->url();
+  const bool rootRequest = urlPath.equals("/");
+
+  for (size_t i = 0; i < WEB_ASSETS_COUNT; i++) {
+    const char *assetPath    = (const char *)pgm_read_ptr(&WEB_ASSETS[i].path);
+    const char *assetCT      = (const char *)pgm_read_ptr(&WEB_ASSETS[i].content_type);
+    const uint8_t *assetData = (const uint8_t *)pgm_read_ptr(&WEB_ASSETS[i].data);
+    const size_t  assetSize  = (size_t)pgm_read_dword(&WEB_ASSETS[i].size);
+
+    bool match;
+    if (rootRequest) {
+      // Serve the first text/html asset for "/"
+      match = (strncmp_P("text/html", assetCT, 9) == 0);
+    } else {
+      match = (strcmp_P(urlPath.c_str(), assetPath) == 0);
+    }
+
+    if (match) {
+      if (rootRequest) {
+        // Allow /?force to bypass firmware-target check during upload
+        force_update = request->hasArg("force");
+        if (captivePortal(request)) return;
+      }
+      AsyncWebServerResponse *response =
+          request->beginResponse_P(200, assetCT, assetData, assetSize);
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Connection", "close");
+      if (rootRequest) {
+        response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response->addHeader("Pragma", "no-cache");
+        response->addHeader("Expires", "-1");
+      } else {
+        response->addHeader("Cache-Control", "no-cache");
+      }
+      request->send(response);
+      return;
+    }
+  }
+  // Not found — fall through to 404 / captive-portal handler
+  WebUpdateHandleNotFound(request);
+}
 
 #if defined(HAS_HEADTRACKING) || defined(SUPPORT_HEADTRACKING)
 static void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len)
@@ -312,42 +343,13 @@ bool crsfWsHasClients()
 }
 #endif
 
-static void WebUpdateSendContent(AsyncWebServerRequest *request)
-{
-  for (size_t i=0 ; i<ARRAY_SIZE(files) ; i++) {
-    if (request->url().equals(files[i].url)) {
-      AsyncWebServerResponse *response = request->beginResponse_P(200, files[i].contentType, files[i].content, files[i].size);
-      if (pgm_read_byte(files[i].content) == 0x1F) {
-        response->addHeader("Content-Encoding", "gzip");
-      }
-      request->send(response);
-      return;
-    }
-  }
-  request->send(404, "text/plain", "File not found");
-}
-
-static void WebUpdateHandleRoot(AsyncWebServerRequest *request)
-{
-  if (captivePortal(request))
-  { // If captive portal redirect instead of displaying the page.
-    return;
-  }
-  force_update = request->hasArg("force");
-  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)INDEX_HTML, sizeof(INDEX_HTML));
-  response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  response->addHeader("Pragma", "no-cache");
-  response->addHeader("Expires", "-1");
-  response->addHeader("Content-Encoding", "gzip");
-  request->send(response);
-}
-
 static void GetConfiguration(AsyncWebServerRequest *request)
 {
   JsonDocument json;
   json["config"]["ssid"] = station_ssid;
   json["config"]["mode"] = wifiMode == WIFI_STA ? "STA" : "AP";
   json["config"]["product_name"] = firmwareOptions.product_name;
+  json["config"]["version"] = VERSION;
 
   // Send the custom AP SSID if configured, otherwise send the default SSID
   const char* customApSsid = config.GetWiFiApSSID();
@@ -840,12 +842,17 @@ static void startServices()
     return;
   }
 
-  server.on("/", WebUpdateHandleRoot);
-  server.on("/mui.css", WebUpdateSendContent);
-  server.on("/elrs.css", WebUpdateSendContent);
-  server.on("/mui.js", WebUpdateSendContent);
-  server.on("/scan.js", WebUpdateSendContent);
-  server.on("/logo.svg", WebUpdateSendContent);
+  // ── Captive-portal redirects — serve root HTML ──────────────────────────
+  server.on("/generate_204", WebServeAsset);   // Android captive-portal probe
+  server.on("/gen_204", WebServeAsset);
+  server.on("/library/test/success.html", WebServeAsset);
+  server.on("/hotspot-detect.html", WebServeAsset);
+  server.on("/connectivity-check.html", WebServeAsset);
+  server.on("/check_network_status.txt", WebServeAsset);
+  server.on("/ncsi.txt", WebServeAsset);
+  server.on("/fwlink", WebServeAsset);
+
+  // ── API endpoints ────────────────────────────────────────────────────────
   server.on("/config", HTTP_GET, GetConfiguration);
   server.on("/networks.json", WebUpdateSendNetworks);
   server.on("/sethome", WebUpdateSetHome);
@@ -853,19 +860,11 @@ static void startServices()
   server.on("/setappassword", WebUpdateSetApPassword);
   #if defined(MAVLINK_ENABLED)
   server.on("/setmavlink", WebUpdateSetMavLink);
+  server.on("/mavlink", HTTP_GET, WebMAVLinkHandler);
   #endif
   server.on("/forget", WebUpdateForget);
   server.on("/connect", WebUpdateConnect);
   server.on("/access", WebUpdateAccessPoint);
-
-  server.on("/generate_204", WebUpdateHandleRoot); // handle Android phones doing shit to detect if there is 'real' internet and possibly dropping conn.
-  server.on("/gen_204", WebUpdateHandleRoot);
-  server.on("/library/test/success.html", WebUpdateHandleRoot);
-  server.on("/hotspot-detect.html", WebUpdateHandleRoot);
-  server.on("/connectivity-check.html", WebUpdateHandleRoot);
-  server.on("/check_network_status.txt", WebUpdateHandleRoot);
-  server.on("/ncsi.txt", WebUpdateHandleRoot);
-  server.on("/fwlink", WebUpdateHandleRoot);
 
   server.on("/update", HTTP_POST, WebUploadResponseHandler, WebUploadDataHandler);
   server.on("/forceupdate", WebUploadForceUpdateHandler);
@@ -873,16 +872,12 @@ static void startServices()
 #if defined(AAT_BACKPACK)
   WebAatInit(server);
 #endif
-#if defined(MAVLINK_ENABLED)
-  server.on("/mavlink", HTTP_GET, WebMAVLinkHandler);
-#endif
 
-  server.onNotFound(WebUpdateHandleNotFound);
-
-  for (int i=0 ; i<ARRAY_SIZE(files) ; i++)
-  {
-    server.on(files[i].url, WebUpdateSendContent);
-  }
+  // ── Static web assets — catch everything else via WEB_ASSETS[] ──────────
+  // WebServeAsset iterates WEB_ASSETS[] to match the request path.
+  // "/" maps to the first text/html asset; hashed /assets/* files are matched
+  // by exact path.
+  server.onNotFound(WebServeAsset);
 
   #if defined(HAS_HEADTRACKING)|| defined(SUPPORT_HEADTRACKING)
   ws.onEvent(onWsEvent);

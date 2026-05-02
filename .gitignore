@@ -6,3 +6,5 @@ __pycache__
 *.pyc
 include/WebContent.h
 super_defines.txt
+html/node_modules/
+html/dist/
