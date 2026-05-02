@@ -224,6 +224,7 @@ static void WebServeAsset(AsyncWebServerRequest *request)
       AsyncWebServerResponse *response =
           request->beginResponse_P(200, assetCT, assetData, assetSize);
       response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Connection", "close");
       if (rootRequest) {
         response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         response->addHeader("Pragma", "no-cache");

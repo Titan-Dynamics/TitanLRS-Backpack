@@ -1011,6 +1011,7 @@ const CrsfParams = {
     linkstatPollInterval: null,   // Interval for polling link statistics
     elrsFlags: 0,                 // Current ELRS status flags (matching LUA)
     elrsFlagsInfo: '',            // Current ELRS error message (matching LUA)
+    consecutiveParamFailures: 0,  // Consecutive params that exhausted all retries (stale WS detection)
 
     // Initialize the parameters UI (only once)
     init: function() {
@@ -1044,6 +1045,9 @@ const CrsfParams = {
             };
             this.ws.onclose = () => {
                 this.ws = null;
+                if (this.isLoading) {
+                    this.abortLoading('Connection lost — click Reload to retry');
+                }
             };
             this.ws.onerror = (e) => {
                 console.error('CRSF WebSocket error', e);
@@ -1218,9 +1222,10 @@ const CrsfParams = {
             return;
         }
 
-        // Valid response received, clear timeout
+        // Valid response received, clear timeout and reset stale-connection counter
         clearTimeout(this.paramTimeout);
         this.paramTimeout = null;
+        this.consecutiveParamFailures = 0;
 
         // Add chunk to pending
         this.pendingChunks.push(chunkData);
@@ -1428,6 +1433,12 @@ const CrsfParams = {
     loadParameters: async function() {
         if (!this.selectedDevice) return;
 
+        // Cancel any in-progress loading before starting fresh
+        clearTimeout(this.paramTimeout);
+        this.paramTimeout = null;
+        this.reloadSingleCallback = null;
+        this.retryMissingCallback = null;
+
         try {
             await this.connect();
         } catch (e) {
@@ -1442,9 +1453,15 @@ const CrsfParams = {
         this.retryCount = 0;
         this.maxRetries = 3;
         this.missingParams = new Set();
+        this.consecutiveParamFailures = 0;
 
         _('params_content').style.display = 'none';
-        _('params_loading').style.display = 'block';
+        const loadingDiv = _('params_loading');
+        loadingDiv.style.display = 'block';
+        // Restore spinner in case a previous abortLoading() hid it
+        const spinnerEl = loadingDiv.querySelector('.td-spinner');
+        if (spinnerEl) spinnerEl.style.display = '';
+        loadingDiv.querySelector('p').textContent = 'Loading parameters...';
 
         // Request first parameter (index 1, chunk 0)
         this.pendingParamNumber = 1;
@@ -1474,6 +1491,9 @@ const CrsfParams = {
 
     // Handle parameter request timeout with retry logic
     handleParameterTimeout: function(paramNum, chunkNum) {
+        // Ignore if loading was aborted
+        if (!this.isLoading && !this.reloadSingleCallback) return;
+
         // If we're reloading a single parameter (after write), don't retry - just skip it
         if (this.reloadSingleCallback) {
             this.pendingChunks = [];
@@ -1493,6 +1513,13 @@ const CrsfParams = {
             this.missingParams.add(paramNum);
             this.retryCount = 0;
             this.pendingChunks = [];
+
+            // Track consecutive full-retry failures to detect a stale WebSocket
+            this.consecutiveParamFailures++;
+            if (this.consecutiveParamFailures >= 3) {
+                this.abortLoading('Connection lost — click Reload to retry');
+                return;
+            }
 
             // If we have a retry callback (retrying missing params), call it
             if (this.retryMissingCallback) {
@@ -1577,6 +1604,32 @@ const CrsfParams = {
     },
 
     // Finish loading and render
+    // Abort loading due to connection loss or stale WebSocket
+    abortLoading: function(message) {
+        clearTimeout(this.paramTimeout);
+        this.paramTimeout = null;
+        this.reloadSingleCallback = null;
+        this.retryMissingCallback = null;
+        this.isLoading = false;
+        this.consecutiveParamFailures = 0;
+
+        // Force-close the WebSocket so the next connect() gets a fresh socket
+        if (this.ws) {
+            // Override onclose to avoid re-entrancy before nulling ws
+            this.ws.onclose = () => { this.ws = null; };
+            this.ws.close();
+        }
+
+        // Show error message in the loading panel (keep it visible so user knows what happened)
+        const loading = _('params_loading');
+        if (loading && loading.style.display !== 'none') {
+            const spinner = loading.querySelector('.td-spinner');
+            if (spinner) spinner.style.display = 'none';
+            const p = loading.querySelector('p');
+            if (p) p.textContent = message || 'Connection lost — click Reload to retry';
+        }
+    },
+
     finishLoading: function() {
         this.isLoading = false;
         clearTimeout(this.paramTimeout);
