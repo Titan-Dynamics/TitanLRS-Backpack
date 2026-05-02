@@ -1,0 +1,125 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+	<title>TitanLRS Race Timer</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" href="/styles/td.css" />
+	<link rel="stylesheet" href="/styles/td-extensions.css" />
+</head>
+
+<body class="td">
+	<header class="td-topbar">
+		<img src="/td-logo.png" height="28" alt="TitanLRS">
+		<div class="td-row td-gap-3 td-mono td-small td-mute">
+			<span id="version_text"></span>
+			<span class="td-divider-v" style="height:14px;"></span>
+			<span>Race Timer</span>
+		</div>
+	</header>
+
+	<div class="td-page">
+		<div data-td-tabs>
+			<div class="td-tabs">
+				<button data-tab="backpack" class="is-active">Backpack</button>
+				<button data-tab="network">Network</button>
+			</div>
+
+			<section class="td-tab-pane is-active" data-tab="backpack">
+				<div class="td-card" style="margin-top:var(--td-s-4)">
+					<div class="td-card-header">
+						<span class="td-h4">Firmware Update</span>
+					</div>
+					<div class="td-card-body">
+						<p class="td-body td-mute" style="margin-bottom:var(--td-s-3)">Upload the correct firmware file. A bad flash may require USB/Serial recovery.</p>
+						<form id='upload_form_bp' method='POST' enctype='multipart/form-data'>
+							<div class="td-drop-zone" data-for="firmware_file_bp">
+								<span class="td-icon td-icon-lg">
+									<svg viewBox="0 0 16 16"><path d="M8 11V3"/><path d="M5 6l3-3 3 3"/><path d="M3 11v2h10v-2"/></svg>
+								</span>
+								<span class="td-drop-label">Click to select firmware, or drag and drop</span>
+								<span class="td-drop-filename"></span>
+							</div>
+							<input id='firmware_file_bp' type='file' name='update' style="display:none">
+							<div style="margin-top:var(--td-s-3);display:flex;align-items:center;gap:var(--td-s-3);">
+								<input type='submit' value='Update' class='td-btn td-btn-primary td-btn-lg'>
+							</div>
+							<div style="margin-top:var(--td-s-3);">
+								<p id="status_bp" class="td-small td-mute"></p>
+								<progress id="progressBar_bp" value="0" max="100"></progress>
+							</div>
+						</form>
+					</div>
+				</div>
+			</section>
+
+			<section class="td-tab-pane" data-tab="network">
+				<div id="apmode" style="display:none;margin-top:var(--td-s-4);">
+					<div class="td-card">
+						<div class="td-card-header">
+							<span class="td-h4">Join Network</span>
+							<span class="td-chip td-chip-info">AP Mode</span>
+						</div>
+						<div class="td-card-body">
+							<p class="td-body td-mute" style="margin-bottom:var(--td-s-3)">Join a home network &mdash; the backpack will auto-connect when in range.</p>
+							<form action="/sethome" id="sethome" method="POST" autocomplete="off">
+								<div class="td-stack td-gap-3">
+									<div class="td-field" style="position:relative;">
+										<label class="td-field-label">SSID</label>
+										<div class="autocomplete" style="position:relative;">
+											<input class="td-input" id="network" type="text" name="network" placeholder="Network name"/>
+										</div>
+										<div id="loader" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);" class="td-spinner"></div>
+									</div>
+									<div class="td-field">
+										<label class="td-field-label">Password</label>
+										<input class="td-input" type="password" id="password" name="password" placeholder="Password" />
+									</div>
+									<div>
+										<input type="submit" value="Join" class="td-btn td-btn-primary">
+									</div>
+								</div>
+							</form>
+						</div>
+					</div>
+					<div class="td-card" style="margin-top:var(--td-s-3)">
+						<div class="td-card-body">
+							<a id="connect" href="#" class="td-body">Connect to home network: <span id="homenet" class="td-mono td-brand"></span></a>
+						</div>
+					</div>
+				</div>
+
+				<div id="stamode" style="display:none;margin-top:var(--td-s-4);">
+					<div class="td-card">
+						<div class="td-card-header">
+							<span class="td-h4">Home Network</span>
+							<span id="ssid" class="td-chip td-chip-ok td-mono"></span>
+						</div>
+						<div class="td-card-body">
+							<div class="td-stack td-gap-3">
+								<div>
+									<p class="td-small td-mute" style="margin-bottom:var(--td-s-2)">Forget home network and start access point</p>
+									<a id="forget" href="#" class="td-btn td-btn-danger">Forget</a>
+								</div>
+								<div>
+									<p class="td-small td-mute" style="margin-bottom:var(--td-s-2)">Disconnect and start access point</p>
+									<a id="access" href="#" class="td-btn">Disconnect</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
+
+	<footer class="td-footer">
+		<a href="https://github.com/TitanDynamics/TitanLRS-Backpack">GitHub</a>
+	</footer>
+
+<script src="/td.js"></script>
+<script src="/td-extensions.js"></script>
+<script src="/scan.js"></script>
+</body>
+</html>

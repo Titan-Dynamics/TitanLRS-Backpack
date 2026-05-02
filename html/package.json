@@ -1,0 +1,20 @@
+{
+  "name": "titanlrs-backpack-ui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "clean": "rimraf dist",
+    "build:txbp": "npm run clean && VITE_TARGET=txbp vite build && cp dist/esp32_fs.h headers/web-txbp.h",
+    "build:vrx": "npm run clean && VITE_TARGET=vrx vite build && cp dist/esp32_fs.h headers/web-vrx.h",
+    "build:timer": "npm run clean && VITE_TARGET=timer vite build && cp dist/esp32_fs.h headers/web-timer.h",
+    "build:all": "npm run build:txbp && npm run build:vrx && npm run build:timer",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "node-zopfli-es": "^2.0.4",
+    "rimraf": "^6.1.0",
+    "vite": "^7.2.2"
+  }
+}

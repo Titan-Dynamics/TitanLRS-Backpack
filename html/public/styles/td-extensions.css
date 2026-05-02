@@ -1,0 +1,502 @@
+/* TitanLRS Backpack — site-specific extensions on top of td.css
+   Covers: tabs, tab panes, modal, spinners, autocomplete,
+           drop-zone, device-list cards, progress, grid helpers. */
+
+/* ── Tabs (full-width td-segment variant) ─────────────── */
+.td-tabs {
+  display: flex;
+  width: 100%;
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+  border: none;
+  border-bottom: 1px solid var(--td-line);
+  background: var(--td-bg-1);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.td-tabs > button {
+  flex: 1;
+  height: 36px;
+  border-radius: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--td-fg-mute);
+  font-family: var(--td-font);
+  font-size: var(--td-fs-md);
+  font-weight: 500;
+  padding: 0 var(--td-s-3);
+  cursor: pointer;
+  transition: color var(--td-dur) var(--td-ease), border-color var(--td-dur) var(--td-ease);
+  white-space: nowrap;
+}
+.td-tabs > button:hover { color: var(--td-fg); }
+.td-tabs > button.is-active {
+  color: var(--td-fg);
+  border-bottom-color: var(--td-brand);
+  background: transparent;
+}
+
+/* ── Tab panes ────────────────────────────────────────── */
+.td-tab-pane { display: none; padding: var(--td-s-4); }
+.td-tab-pane.is-active { display: block; }
+
+/* ── Page header / topbar ─────────────────────────────── */
+.td-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--td-s-3) var(--td-s-4);
+  background: var(--td-bg-0);
+  border-bottom: 1px solid var(--td-line);
+  min-height: 48px;
+}
+.td-topbar img { display: block; }
+
+/* ── Page layout wrapper ──────────────────────────────── */
+.td-page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 var(--td-s-5) var(--td-s-8);
+}
+@media (min-width: 1600px) {
+  .td-page { padding-left: var(--td-s-6); padding-right: var(--td-s-6); }
+}
+.td-page-full {
+  width: 100%;
+  padding: 0 var(--td-s-5) var(--td-s-8);
+}
+
+/* ── Section heading inside a tab pane ───────────────── */
+.td-section-title {
+  font-size: var(--td-fs-md);
+  font-weight: 600;
+  color: var(--td-fg);
+  margin: 0 0 var(--td-s-3);
+}
+
+/* ── Card stack spacing ───────────────────────────────── */
+.td-card + .td-card { margin-top: var(--td-s-3); }
+
+/* ── Parameters dual-pane grid ────────────────────────── */
+.td-params-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--td-s-3);
+}
+@media (max-width: 600px) {
+  .td-params-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Device list clickable cards ──────────────────────── */
+.td-card-clickable {
+  cursor: pointer;
+  transition: background var(--td-dur) var(--td-ease);
+  position: relative;
+}
+.td-card-clickable:hover { background: var(--td-bg-2); }
+.td-card-clickable.is-active {
+  background: var(--td-bg-3);
+}
+.td-card-clickable.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--td-brand);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ── Device item inside clickable card ───────────────── */
+.td-device-item {
+  padding: var(--td-s-3) var(--td-s-4);
+  border-bottom: 1px solid var(--td-line);
+}
+.td-device-item:last-child { border-bottom: none; }
+.td-device-name {
+  font-weight: 500;
+  color: var(--td-fg);
+  font-size: var(--td-fs-md);
+}
+.td-device-meta {
+  margin-top: 2px;
+  font-size: var(--td-fs-sm);
+  color: var(--td-fg-dim);
+}
+
+/* ── Autocomplete dropdown ────────────────────────────── */
+.autocomplete-items {
+  position: absolute;
+  border: 1px solid var(--td-line-2);
+  background: var(--td-bg-2);
+  z-index: 99;
+  top: 100%;
+  left: 0;
+  right: 0;
+  border-radius: var(--td-r-md);
+  box-shadow: var(--td-shadow-2);
+  overflow: hidden;
+}
+.autocomplete-items > div {
+  padding: 0 var(--td-s-3);
+  height: var(--td-h-row);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: var(--td-fs-md);
+  color: var(--td-fg);
+  border-bottom: 1px solid var(--td-line);
+}
+.autocomplete-items > div:last-child { border-bottom: none; }
+.autocomplete-items > div:hover,
+.autocomplete-active {
+  background: var(--td-bg-3) !important;
+}
+
+/* ── Modal backdrop ───────────────────────────────────── */
+.td-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--td-s-4);
+}
+
+/* ── Modal card ───────────────────────────────────────── */
+.td-modal {
+  width: 100%;
+  max-width: 400px;
+  background: var(--td-bg-1);
+  border: 1px solid var(--td-line-2);
+  border-radius: var(--td-r-xl);
+  box-shadow: var(--td-shadow-2);
+  overflow: hidden;
+}
+.td-modal .td-card-header {
+  min-height: 48px;
+}
+.td-modal-body {
+  padding: var(--td-s-4);
+}
+.td-modal-message {
+  font-size: var(--td-fs-md);
+  color: var(--td-fg-mute);
+  line-height: var(--td-lh-md);
+  margin: 0 0 var(--td-s-4);
+}
+.td-modal-actions {
+  display: flex;
+  gap: var(--td-s-2);
+  justify-content: flex-end;
+}
+
+/* ── Spinner (small — inline loader) ─────────────────── */
+.td-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--td-bg-4);
+  border-top-color: var(--td-brand);
+  border-radius: 50%;
+  animation: td-spin 0.7s linear infinite;
+}
+
+/* ── Spinner large (calibration ring) ────────────────── */
+.td-spinner-lg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--td-s-3);
+  color: var(--td-fg-mute);
+  font-size: var(--td-fs-md);
+}
+.td-spinner-lg::before {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--td-bg-4);
+  border-top-color: var(--td-brand);
+  border-radius: 50%;
+  animation: td-spin 0.7s linear infinite;
+}
+
+@keyframes td-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Calibration overlay (mui.overlay replacement) ───── */
+.td-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.td-overlay-content {
+  background: var(--td-bg-1);
+  border: 1px solid var(--td-line-2);
+  border-radius: var(--td-r-xl);
+  padding: var(--td-s-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--td-s-3);
+  min-width: 200px;
+}
+
+/* ── Drop zone ────────────────────────────────────────── */
+.td-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--td-s-2);
+  border: 1px dashed var(--td-line-3);
+  border-radius: var(--td-r-lg);
+  background: var(--td-bg-2);
+  padding: var(--td-s-6) var(--td-s-4);
+  cursor: pointer;
+  transition: border-color var(--td-dur) var(--td-ease), background var(--td-dur) var(--td-ease);
+  text-align: center;
+}
+.td-drop-zone:hover,
+.td-drop-zone.is-active {
+  border-color: var(--td-brand);
+  background: var(--td-brand-soft);
+}
+.td-drop-zone .td-drop-label {
+  font-size: var(--td-fs-sm);
+  color: var(--td-fg-mute);
+}
+.td-drop-zone .td-drop-filename {
+  font-family: var(--td-mono);
+  font-size: var(--td-fs-sm);
+  color: var(--td-brand);
+}
+
+/* ── Progress bar override (accent brand color) ───────── */
+progress {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  background: var(--td-bg-4);
+  overflow: hidden;
+  accent-color: var(--td-brand);
+}
+progress::-webkit-progress-bar { background: var(--td-bg-4); border-radius: 999px; }
+progress::-webkit-progress-value { background: var(--td-brand); border-radius: 999px; }
+progress::-moz-progress-bar { background: var(--td-brand); border-radius: 999px; }
+
+/* ── Info help box ────────────────────────────────────── */
+.td-help-box {
+  background: var(--td-info-soft);
+  border: 1px solid var(--td-info);
+  border-radius: var(--td-r-md);
+  padding: var(--td-s-3) var(--td-s-4);
+  font-size: var(--td-fs-sm);
+  color: var(--td-fg-mute);
+  line-height: var(--td-lh-md);
+}
+.td-help-box ul { margin: var(--td-s-2) 0 0 var(--td-s-4); padding: 0; }
+.td-help-box li { margin-bottom: 4px; }
+
+/* ── p5 canvas holder ─────────────────────────────────── */
+#canvas-holder canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--td-r-md);
+}
+
+/* ── Loader wrapper (loading state) ──────────────────── */
+.td-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--td-s-3);
+  padding: var(--td-s-8) var(--td-s-4);
+  color: var(--td-fg-mute);
+  font-size: var(--td-fs-sm);
+}
+
+/* ── Slider datalist ticks (subtle) ───────────────────── */
+input[type=range] + datalist {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--td-fs-xs);
+  color: var(--td-fg-dim);
+  padding: 2px 2px 0;
+}
+input[type=range] + datalist option { padding: 0; }
+
+/* ── Fieldset cleanup (replaced by td-card) ───────────── */
+fieldset { border: none; padding: 0; margin: 0; }
+legend { display: none; }
+
+/* ── Toggle container row helper ─────────────────────── */
+.td-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--td-s-3);
+}
+.td-toggle-row .td-label {
+  color: var(--td-fg-mute);
+  font-size: var(--td-fs-md);
+}
+
+/* ── Inline input+unit pair ───────────────────────────── */
+.td-input-unit {
+  display: flex;
+  align-items: center;
+  gap: var(--td-s-2);
+}
+.td-input-unit .td-input { flex: 1; min-width: 0; }
+.td-unit {
+  font-family: var(--td-mono);
+  font-size: var(--td-fs-sm);
+  color: var(--td-fg-dim);
+  white-space: nowrap;
+}
+
+/* ── Range hint ───────────────────────────────────────── */
+.td-range-hint {
+  font-family: var(--td-mono);
+  font-size: var(--td-fs-xs);
+  color: var(--td-fg-faint);
+}
+
+/* ── card-row when used in a flat list (no grid) ─────── */
+.td-card-row-full {
+  padding: var(--td-s-3) var(--td-s-4);
+  border-bottom: 1px solid var(--td-line);
+}
+.td-card-row-full:last-child { border-bottom: none; }
+
+/* ── Sticky footer layout ────────────────────────────── */
+html, body { height: 100%; }
+body.td {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+#main > [data-td-tabs] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+.td-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--td-s-4);
+  border-top: 1px solid var(--td-line);
+  font-size: var(--td-fs-sm);
+  color: var(--td-fg-dim);
+  gap: var(--td-s-4);
+}
+.td-footer a {
+  color: var(--td-fg-mute);
+  text-decoration: none;
+}
+.td-footer a:hover { color: var(--td-fg); }
+
+/* ── AAT min-height panels ────────────────────────────── */
+.td-panel-min { min-height: 200px; }
+
+/* ── Select chevron (re-encode SVG for reliable rendering) */
+.td-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239A9DA3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 28px;
+}
+
+/* ── Two-column layout (devices + params) ─────────────── */
+.td-two-col {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--td-s-3);
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .td-two-col { grid-template-columns: 1fr; }
+}
+
+/* ── Two-column equal grid ────────────────────────────── */
+.td-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 480px) {
+  .td-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ── Text alignment helper ────────────────────────────── */
+.td-center { text-align: center; }
+
+/* ── Parameters status bar ────────────────────────────── */
+.td-params-status {
+  display: flex;
+  align-items: center;
+  gap: var(--td-s-2);
+  padding: var(--td-s-2) var(--td-s-4);
+  border-bottom: 1px solid var(--td-line);
+  background: var(--td-bg-1);
+  flex-wrap: wrap;
+}
+
+/* ── Device list item (clickable, with selected state) ── */
+.td-device-item {
+  padding: var(--td-s-3) var(--td-s-4);
+  border-bottom: 1px solid var(--td-line);
+  cursor: pointer;
+  transition: background var(--td-dur) var(--td-ease);
+}
+.td-device-item:last-child { border-bottom: none; }
+.td-device-item:hover { background: var(--td-bg-3); }
+.td-device-item.is-selected {
+  background: var(--td-bg-3);
+  border-left: 2px solid var(--td-brand);
+  padding-left: calc(var(--td-s-4) - 2px);
+}
+.td-device-name {
+  font-weight: 500;
+  color: var(--td-fg);
+  font-size: var(--td-fs-md);
+}
+
+/* ── Icon button small ────────────────────────────────── */
+.td-icon { display: inline-flex; align-items: center; justify-content: center; }
+.td-icon svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; width: 1em; height: 1em; }
+.td-icon-lg svg { width: 32px; height: 32px; }
+
+/* ── Params breadcrumb ────────────────────────────────── */
+.td-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--td-s-2);
+  padding: var(--td-s-2) 0;
+}
+.td-breadcrumb-path {
+  font-family: var(--td-mono);
+  font-size: var(--td-fs-sm);
+  color: var(--td-fg-dim);
+}

@@ -619,8 +619,6 @@ if (_('setrtc')) _('setrtc').addEventListener('submit', callback("Set RTC Time",
 
 //=========================================================
 
-// Alert box design by Igor Ferrão de Souza: https://www.linkedin.com/in/igor-ferr%C3%A3o-de-souza-4122407b/
-
 function cuteAlert({
     type,
     title,
@@ -628,108 +626,66 @@ function cuteAlert({
     buttonText = "OK",
     confirmText = "OK",
     cancelText = "Cancel",
-    closeStyle,
   }) {
     return new Promise((resolve) => {
-      setInterval(() => {}, 5000);
       const body = document.querySelector("body");
 
-      const scripts = document.getElementsByTagName("script");
+      // Map alert type to TD chip class and header tint
+      const chipMap = { success: 'td-chip-ok', error: 'td-chip-bad', warning: 'td-chip-warn', info: 'td-chip-info', question: 'td-chip-warn' };
+      const chipClass = chipMap[type] || 'td-chip-info';
 
-      let closeStyleTemplate = "alert-close";
-      if (closeStyle === "circle") {
-        closeStyleTemplate = "alert-close-circle";
-      }
-
-      let btnTemplate = `<div><button class="alert-button mui-btn mui-btn--primary">${buttonText}</button></div>`;
+      let actionsTemplate;
       if (type === "question") {
-        btnTemplate = `
-<div class="question-buttons">
-  <button class="confirm-button mui-btn mui-btn--danger">${confirmText}</button>
-  <button class="cancel-button mui-btn">${cancelText}</button>
-</div>
-`;
-      }
-
-      let svgTemplate = `
-<svg class="alert-img" xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 52 52" xmlns:v="https://vecta.io/nano">
-<path d="M26 0C11.664 0 0 11.663 0 26s11.664 26 26 26 26-11.663 26-26S40.336 0 26 0zm0 50C12.767 50 2 39.233 2 26S12.767 2 26 2s24 10.767 24 24-10.767 24-24
-24zm9.707-33.707a1 1 0 0 0-1.414 0L26 24.586l-8.293-8.293a1 1 0 0 0-1.414 1.414L24.586 26l-8.293 8.293a1 1 0 0 0 0 1.414c.195.195.451.293.707.293s.512-.098.707
--.293L26 27.414l8.293 8.293c.195.195.451.293.707.293s.512-.098.707-.293a1 1 0 0 0 0-1.414L27.414 26l8.293-8.293a1 1 0 0 0 0-1.414z"/>
-</svg>
-`;
-      if (type === "success") {
-        svgTemplate = `
-<svg class="alert-img" xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 52 52" xmlns:v="https://vecta.io/nano">
-<path d="M26 0C11.664 0 0 11.663 0 26s11.664 26 26 26 26-11.663 26-26S40.336 0 26 0zm0 50C12.767 50 2 39.233 2 26S12.767 2 26 2s24 10.767 24 24-10.767 24-24
-24zm12.252-34.664l-15.369 17.29-9.259-7.407a1 1 0 0 0-1.249 1.562l10 8a1 1 0 0 0 1.373-.117l16-18a1 1 0 1 0-1.496-1.328z"/>
-</svg>
-`;
-      }
-      if (type === "info") {
-        svgTemplate = `
-<svg class="alert-img" xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 64 64" xmlns:v="https://vecta.io/nano">
-<path d="M38.535 47.606h-4.08V28.447a1 1 0 0 0-1-1h-4.52a1 1 0 1 0 0 2h3.52v18.159h-5.122a1 1 0 1 0 0 2h11.202a1 1 0 1 0 0-2z"/>
-<circle cx="32" cy="18" r="3"/><path d="M32 0C14.327 0 0 14.327 0 32s14.327 32 32 32 32-14.327 32-32S49.673 0 32 0zm0 62C15.458 62 2 48.542 2 32S15.458 2 32 2s30 13.458 30 30-13.458 30-30 30z"/>
-</svg>
-`;
+        actionsTemplate = `
+<div class="td-modal-actions">
+  <button class="cancel-button td-btn">${cancelText}</button>
+  <button class="confirm-button td-btn td-btn-danger">${confirmText}</button>
+</div>`;
+      } else {
+        actionsTemplate = `
+<div class="td-modal-actions">
+  <button class="alert-button td-btn td-btn-primary">${buttonText}</button>
+</div>`;
       }
 
       const template = `
-<div class="alert-wrapper">
-  <div class="alert-frame">
-    <div class="alert-header ${type}-bg">
-      <span class="${closeStyleTemplate}">X</span>
-      ${svgTemplate}
+<div class="td-modal-backdrop">
+  <div class="td-card td-modal">
+    <div class="td-card-header">
+      <span class="td-h4">${title}</span>
+      <span class="td-chip ${chipClass}">${type}</span>
     </div>
-    <div class="alert-body">
-      <span class="alert-title">${title}</span>
-      <span class="alert-message">${message}</span>
-      ${btnTemplate}
+    <div class="td-modal-body">
+      <p class="td-modal-message">${message}</p>
+      ${actionsTemplate}
     </div>
   </div>
-</div>
-`;
+</div>`;
 
-      body.insertAdjacentHTML("afterend", template);
+      body.insertAdjacentHTML("beforeend", template);
 
-      const alertWrapper = document.querySelector(".alert-wrapper");
-      const alertFrame = document.querySelector(".alert-frame");
-      const alertClose = document.querySelector(`.${closeStyleTemplate}`);
+      const backdrop = body.querySelector(".td-modal-backdrop:last-child");
+      const modal = backdrop.querySelector(".td-modal");
 
-      function resolveIt() {
-        alertWrapper.remove();
-        resolve();
-      }
-      function confirmIt() {
-        alertWrapper.remove();
-        resolve("confirm");
-      }
-      function stopProp(e) {
-        e.stopPropagation();
-      }
+      function resolveIt() { backdrop.remove(); resolve(); }
+      function confirmIt() { backdrop.remove(); resolve("confirm"); }
+      function stopProp(e) { e.stopPropagation(); }
 
       if (type === "question") {
-        const confirmButton = document.querySelector(".confirm-button");
-        const cancelButton = document.querySelector(".cancel-button");
-
-        confirmButton.addEventListener("click", confirmIt);
-        cancelButton.addEventListener("click", resolveIt);
+        backdrop.querySelector(".confirm-button").addEventListener("click", confirmIt);
+        backdrop.querySelector(".cancel-button").addEventListener("click", resolveIt);
       } else {
-        const alertButton = document.querySelector(".alert-button");
-
-        alertButton.addEventListener("click", resolveIt);
+        backdrop.querySelector(".alert-button").addEventListener("click", resolveIt);
       }
 
-      alertClose.addEventListener("click", resolveIt);
-      alertWrapper.addEventListener("click", resolveIt);
-      alertFrame.addEventListener("click", stopProp);
+      backdrop.addEventListener("click", resolveIt);
+      modal.addEventListener("click", stopProp);
     });
   }
 
 //=========================================================
 
-if (_('httab')) _('httab').addEventListener('mui.tabs.showstart', start);
+if (_('httab')) _('httab').addEventListener('td:tabchange', function(e) { if (e.detail && e.detail.tab === 'ht') start(); });
 
 var websock;
 var Euler = {heading: 0.0, pitch: 0.0, roll: 0.0};
@@ -896,17 +852,12 @@ function saveOrientation() {
 
 function calibrationOn() {
     _('main').classList.add('loading');
-    let calibrating = document.createElement('div')
-    calibrating.innerHTML = '<div class="ring">Calibrating<span></span></div>'
-    mui.overlay('on', {
-        'keyboard': false,
-        'static': true
-    }, calibrating);
+    TdBP.overlayOn('<div class="td-spinner-lg">Calibrating</div>');
 }
 
 function calibrationOff() {
     _('main').classList.remove('loading');
-    mui.overlay('off');
+    TdBP.overlayOff();
 }
 
 //=========================================================
@@ -1137,12 +1088,12 @@ const CrsfParams = {
         // LUA line 513: bit32.btest(elrsFlags, 1) checks if bit 0 (0x01) is set
         const isConnected = (newFlags & 0x01);  // bit 0 indicates connected
 
-        // Create styled outline chip components using MUI colors
+        // Create styled chip components using TD design system classes
         const connectionChip = isConnected
-            ? '<span style="display: inline-block; padding: 2px 12px; border-radius: 16px; background-color: transparent; border: 1px solid #4caf50; color: #4caf50; font-size: 0.75em; margin-right: 8px;">RX Connected</span>'
-            : '<span style="display: inline-block; padding: 2px 12px; border-radius: 16px; background-color: transparent; border: 1px solid #f44336; color: #f44336; font-size: 0.75em; margin-right: 8px;">RX Disconnected</span>';
+            ? '<span class="td-chip td-chip-ok">RX Connected</span>'
+            : '<span class="td-chip td-chip-bad">RX Disconnected</span>';
 
-        const counterChip = `<span style="display: inline-block; padding: 2px 12px; border-radius: 16px; background-color: transparent; border: 1px solid #9e9e9e; color: #9e9e9e; font-size: 0.75em;">${badPkt}/${goodPkt}</span>`;
+        const counterChip = `<span class="td-chip td-mono">${badPkt}/${goodPkt}</span>`;
 
         const linkstatElement = _('params_linkstat');
         const statusRow = _('params_status');
@@ -1416,7 +1367,7 @@ const CrsfParams = {
             _('scan_devices').disabled = false;
             _('scan_devices').textContent = 'Reload';
             if (this.devices.length === 0) {
-                _('device_list').innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
+                _('device_list').innerHTML = '<p class="td-small td-mute td-center">No devices found</p>';
             }
         }, 2000);
     },
@@ -1767,32 +1718,23 @@ const CrsfParams = {
     renderDeviceList: function() {
         const container = _('device_list');
         if (this.devices.length === 0) {
-            container.innerHTML = '<p style="color: #999; text-align: center;">No devices found</p>';
+            container.innerHTML = '<p class="td-small td-mute td-center">No devices found</p>';
             return;
         }
 
-        let html = '<div style="margin-top: 10px;">';
+        let html = '';
         this.devices.forEach(device => {
             const selected = this.selectedDevice && this.selectedDevice.address === device.address;
             const deviceJson = JSON.stringify(device).replace(/"/g, '&quot;');
             html += `
-                <div class="device-item" onclick="CrsfParams.selectDevice(${deviceJson})" style="
-                    padding: 12px;
-                    margin-bottom: 8px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    background: ${selected ? '#e3f2fd' : '#fff'};
-                ">
-                    <div style="font-weight: bold; margin-bottom: 4px;">${device.name}</div>
-                    <div style="font-size: 0.85em; color: #666;">
-                        ID: 0x${device.address.toString(16).toUpperCase()}<br/>
-                        Params: ${device.parametersTotal}
+                <div class="td-device-item${selected ? ' is-selected' : ''}" onclick="CrsfParams.selectDevice(${deviceJson})">
+                    <div class="td-device-name">${device.name}</div>
+                    <div class="td-small td-mute td-mono">
+                        0x${device.address.toString(16).toUpperCase()} &bull; ${device.parametersTotal} params
                     </div>
                 </div>
             `;
         });
-        html += '</div>';
         container.innerHTML = html;
     },
 
@@ -1802,15 +1744,15 @@ const CrsfParams = {
         const params = this.parameters.filter(p => p && p.parentFolder === this.currentFolder && !p.hidden);
 
         if (params.length === 0) {
-            container.innerHTML = '<p style="color: #999; text-align: center;">No parameters in this folder</p>';
+            container.innerHTML = '<p class="td-small td-mute td-center">No parameters in this folder</p>';
             return;
         }
 
-        let html = '<table class="mui-table" style="width: 100%;">';
+        let html = '<table class="td-table" style="width:100%;">';
         params.forEach(param => {
             html += '<tr>';
-            html += `<td style="width: 40%; font-weight: 500; vertical-align: middle;">${param.name}</td>`;
-            html += '<td style="width: 60%;">';
+            html += `<td style="width:40%;">${param.name}</td>`;
+            html += '<td style="width:60%;">';
             html += this.renderParamControl(param);
             html += '</td></tr>';
         });
@@ -1823,22 +1765,22 @@ const CrsfParams = {
         switch (param.type) {
             case CRSF.PARAM_TYPE_UINT8:
             case CRSF.PARAM_TYPE_INT8:
-                const unit = param.unit ? ` <span style="color: #666; font-size: 0.9em;">${param.unit}</span>` : '';
+                const unit = param.unit ? ` <span class="td-small td-mute">${param.unit}</span>` : '';
                 return `
-                    <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="td-row td-gap-2" style="align-items:center;">
                         <input type="number"
                             value="${param.value}"
                             min="${param.min}"
                             max="${param.max}"
                             onchange="CrsfParams.updateParameter(${param.number}, parseInt(this.value))"
-                            style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px; max-width: 100px;">
+                            class="td-input td-input-mono" style="max-width:100px;">
                         ${unit}
-                        <span style="color: #999; font-size: 0.85em;">[${param.min}-${param.max}]</span>
+                        <span class="td-small td-mute td-mono">[${param.min}–${param.max}]</span>
                     </div>
                 `;
 
             case CRSF.PARAM_TYPE_TEXT_SELECTION:
-                const selUnit = param.unit ? ` <span style="color: #666; font-size: 0.9em;">${param.unit}</span>` : '';
+                const selUnit = param.unit ? ` <span class="td-small td-mute">${param.unit}</span>` : '';
                 let options = '';
                 param.options.forEach((opt, i) => {
                     // Skip empty or whitespace-only options (like the ELRS LUA script does)
@@ -1847,9 +1789,9 @@ const CrsfParams = {
                     }
                 });
                 return `
-                    <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="td-row td-gap-2" style="align-items:center;">
                         <select onchange="CrsfParams.updateParameter(${param.number}, parseInt(this.value))"
-                            style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            class="td-select" style="flex:1;">
                             ${options}
                         </select>
                         ${selUnit}
@@ -1857,16 +1799,16 @@ const CrsfParams = {
                 `;
 
             case CRSF.PARAM_TYPE_FOLDER:
-                return `<button class="mui-btn mui-btn--primary" onclick="CrsfParams.navigateToFolder(${param.number}, '${param.name.replace(/'/g, "\\'")}')">
+                return `<button class="td-btn td-btn-primary td-btn-sm" onclick="CrsfParams.navigateToFolder(${param.number}, '${param.name.replace(/'/g, "\\'")}')">
                         Enter
                     </button>`;
 
             case CRSF.PARAM_TYPE_INFO:
-                return `<span style="color: #666;">${param.value || ''}</span>`;
+                return `<span class="td-small td-mute">${param.value || ''}</span>`;
 
             case CRSF.PARAM_TYPE_COMMAND:
                 // Don't change button text/state - just show the value like LUA does
-                return `<button class="mui-btn mui-btn--primary"
+                return `<button class="td-btn td-btn-primary td-btn-sm"
                         onclick="CrsfParams.executeCommand(${param.number}, '${param.name.replace(/'/g, "\\'")}')">${param.value || 'Execute'}</button>`;
 
             case CRSF.PARAM_TYPE_STRING:
@@ -1874,11 +1816,11 @@ const CrsfParams = {
                     <input type="text"
                         value="${param.value || ''}"
                         onchange="CrsfParams.updateParameter(${param.number}, this.value)"
-                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                        class="td-input" style="width:100%;">
                 `;
 
             default:
-                return `<span style="color: #999;">Unsupported type (${param.type})</span>`;
+                return `<span class="td-small td-mute">Unsupported type (${param.type})</span>`;
         }
     },
 
@@ -2036,8 +1978,10 @@ const CrsfParams = {
 
 // Initialize CRSF Parameters when tab is shown
 if (_('params_tab')) {
-    _('params_tab').addEventListener('mui.tabs.showstart', function() {
-        CrsfParams.init();
+    document.addEventListener('td:tabchange', function(e) {
+        if (e.detail && e.detail.tab === 'params') {
+            CrsfParams.init();
+        }
     });
     // Initialize and auto-scan on page load
     CrsfParams.init();

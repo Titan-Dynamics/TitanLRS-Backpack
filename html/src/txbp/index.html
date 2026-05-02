@@ -1,0 +1,316 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+	<title>TitanLRS TX Backpack</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" href="/styles/td.css" />
+	<link rel="stylesheet" href="/styles/td-extensions.css" />
+</head>
+
+<body class="td">
+	<div id="main">
+		<header class="td-topbar">
+			<img src="/td-logo.png" height="28" alt="TitanLRS">
+			<div class="td-row td-gap-3 td-mono td-small td-mute">
+				<span id="version_text"></span>
+				<span class="td-divider-v" style="height:14px;"></span>
+				<span id="product_name">TX Backpack</span>
+				<span id="reg_domain"></span>
+			</div>
+		</header>
+
+		<div data-td-tabs>
+			<div class="td-tabs">
+				<button id="params_tab" data-tab="params" class="is-active">Parameters</button>
+				<button data-tab="network">Network</button>
+				<button data-tab="mavlink">MAVLink</button>
+				<button data-tab="firmware">Firmware</button>
+				<button id="tx_tab" data-tab="tx">TX</button>
+			</div>
+
+			<!-- Parameters pane -->
+			<section class="td-tab-pane is-active" data-tab="params">
+				<div class="td-page">
+					<div class="td-two-col" style="margin-top:var(--td-s-4);">
+						<div class="td-card" style="min-height:400px;">
+							<div class="td-card-header">
+								<span class="td-h4">Devices</span>
+								<button id="scan_devices" class="td-btn td-btn-sm">Reload</button>
+							</div>
+							<div class="td-card-body">
+								<div id="device_list">
+									<p class="td-small td-mute td-center">Scanning for devices...</p>
+								</div>
+							</div>
+						</div>
+
+						<div class="td-card" style="min-height:400px;">
+							<div class="td-card-header" id="params_header">
+								<span class="td-h4" id="params_device_name">Select a device</span>
+								<button id="reload_params" class="td-btn td-btn-sm" disabled>Reload</button>
+							</div>
+							<div id="params_status" style="display:none;" class="td-params-status">
+								<span id="params_linkstat"></span>
+							</div>
+							<div id="params_breadcrumb" style="display:none;" class="td-card-row">
+								<button id="params_back" class="td-btn td-btn-sm">&larr; Back</button>
+								<span id="params_path" class="td-small td-mute"></span>
+							</div>
+							<div class="td-card-body">
+								<div id="params_content">
+									<p class="td-small td-mute td-center" style="margin-top:var(--td-s-6);">No device selected</p>
+								</div>
+								<div id="params_loading" style="display:none;text-align:center;margin-top:var(--td-s-6);">
+									<div class="td-spinner"></div>
+									<p class="td-small td-mute" style="margin-top:var(--td-s-2);">Loading parameters...</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Network pane -->
+			<section class="td-tab-pane" data-tab="network">
+				<div class="td-page">
+					<div class="td-stack td-gap-3" style="margin-top:var(--td-s-4);">
+						<div class="td-card">
+							<div class="td-card-header">
+								<span class="td-h4">Access Point SSID</span>
+							</div>
+							<div class="td-card-body">
+								<form action="/setapssid" id="setapssid" method="POST" autocomplete="off">
+									<div class="td-stack td-gap-3">
+										<div class="td-field">
+											<label class="td-field-label">SSID</label>
+											<input type="text" id="ap_ssid" name="ap_ssid" placeholder="Access Point SSID" maxlength="32" required class="td-input"/>
+										</div>
+										<div class="td-row td-gap-2">
+											<input type="submit" value="Save SSID" class="td-btn td-btn-primary">
+											<button type="button" id="ap_ssid_reset" class="td-btn">Reset to Default</button>
+										</div>
+									</div>
+								</form>
+							</div>
+						</div>
+
+						<div class="td-card">
+							<div class="td-card-header">
+								<span class="td-h4">Access Point Password</span>
+								<span class="td-small td-mute">Minimum 8 characters</span>
+							</div>
+							<div class="td-card-body">
+								<form action="/setappassword" id="setappassword" method="POST" autocomplete="off">
+									<div class="td-stack td-gap-3">
+										<div class="td-field">
+											<label class="td-field-label">Password</label>
+											<div style="position:relative;">
+											<input type="password" id="ap_password" name="ap_password" placeholder="Access Point Password" minlength="8" maxlength="63" required class="td-input" style="padding-right:40px;width:100%;box-sizing:border-box;"/>
+											<button type="button" id="ap_password_toggle" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--td-mute);">
+												<svg id="ap_password_eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+													<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+													<circle cx="12" cy="12" r="3"></circle>
+												</svg>
+												<svg id="ap_password_eye_off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+													<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+													<line x1="1" y1="1" x2="23" y2="23"></line>
+												</svg>
+											</button>
+										</div>											</div>										<div class="td-row td-gap-2">
+											<input type="submit" value="Save Password" class="td-btn td-btn-primary">
+											<button type="button" id="ap_password_reset" class="td-btn">Reset to Default</button>
+										</div>
+									</div>
+								</form>
+							</div>
+						</div>
+
+						<div id="apmode" style="display:none;">
+							<div class="td-card">
+								<div class="td-card-header">
+									<span class="td-h4">Join Home Network</span>
+									<span class="td-chip td-chip-info">AP Mode</span>
+								</div>
+								<div class="td-card-body">
+									<p class="td-body td-mute" style="margin-bottom:var(--td-s-3)">Join a home network &mdash; the backpack will auto-connect when in range.</p>
+									<form action="/sethome" id="sethome" method="POST" autocomplete="off">
+										<div class="td-stack td-gap-3">
+											<div class="td-field" style="position:relative;">
+												<label class="td-field-label">SSID</label>
+												<div class="autocomplete">
+													<input id="network" type="text" name="network" placeholder="Network name" class="td-input"/>
+												</div>
+												<div id="loader" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);" class="td-spinner"></div>
+											</div>
+											<div class="td-field">
+												<label class="td-field-label">Password</label>
+												<input type="password" id="password" name="password" placeholder="Password" class="td-input"/>
+											</div>
+											<div>
+												<input type="submit" value="Join" class="td-btn td-btn-primary">
+											</div>
+										</div>
+									</form>
+									<div style="margin-top:var(--td-s-3);">
+										<a id="connect" href="#" class="td-body">Connect to home network: <span id="homenet" class="td-mono td-brand"></span></a>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div id="stamode" style="display:none;">
+							<div class="td-card">
+								<div class="td-card-header">
+									<span class="td-h4">Home Network</span>
+									<span id="ssid" class="td-chip td-chip-ok td-mono"></span>
+								</div>
+								<div class="td-card-body">
+									<div class="td-stack td-gap-3">
+										<div>
+											<p class="td-small td-mute" style="margin-bottom:var(--td-s-2)">Forget home network and start access point</p>
+											<a id="forget" href="#" class="td-btn td-btn-danger">Forget</a>
+										</div>
+										<div>
+											<p class="td-small td-mute" style="margin-bottom:var(--td-s-2)">Disconnect and start access point</p>
+											<a id="access" href="#" class="td-btn">Disconnect</a>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- MAVLink pane -->
+			<section class="td-tab-pane" data-tab="mavlink">
+				<div class="td-page">
+					<div class="td-stack td-gap-3" style="margin-top:var(--td-s-4);">
+						<div class="td-card">
+							<div class="td-card-header">
+								<span class="td-h4">MAVLink Configuration</span>
+							</div>
+							<div class="td-card-body">
+								<form action="/setmavlink" id="mavlink_form" method="POST" autocomplete="off">
+									<div class="td-stack td-gap-3">
+										<div class="td-field">
+											<label class="td-field-label">Send Port</label>
+											<input type="number" id="mavlink_send_port" name="send" placeholder="Send Port" class="td-input td-input-mono"/>
+										</div>
+										<div class="td-field">
+											<label class="td-field-label">Listen Port</label>
+											<input type="number" id="mavlink_listen_port" name="listen" placeholder="Listen Port" class="td-input td-input-mono"/>
+										</div>
+										<div class="td-row td-gap-2">
+											<input type="submit" value="Save Configuration" class="td-btn td-btn-primary">
+											<button id="mavlink_reset_defaults" class="td-btn">Reset Defaults</button>
+										</div>
+									</div>
+								</form>
+							</div>
+						</div>
+
+						<div class="td-card">
+							<div class="td-card-header">
+								<span class="td-h4">MAVLink Statistics</span>
+							</div>
+							<table class="td-table">
+								<tbody>
+									<tr><td>Packets Downlink</td><td id="mavlink_packets_down" class="td-mono"></td></tr>
+									<tr><td>Packets Uplink</td><td id="mavlink_packets_up" class="td-mono"></td></tr>
+									<tr><td>Drops Downlink</td><td id="mavlink_drops_down" class="td-mono"></td></tr>
+									<tr><td>Overflows Downlink</td><td id="mavlink_overflows_down" class="td-mono"></td></tr>
+									<tr><td>GCS IP Addresses</td><td id="mavlink_gcs_ip" class="td-mono"></td></tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Firmware pane -->
+			<section class="td-tab-pane" data-tab="firmware">
+				<div class="td-page">
+					<div class="td-card" style="margin-top:var(--td-s-4);">
+						<div class="td-card-header">
+							<span class="td-h4">Backpack Firmware Update</span>
+						</div>
+						<div class="td-card-body">
+							<p class="td-body td-mute" style="margin-bottom:var(--td-s-3)">Upload the correct firmware file. A bad flash may require USB/Serial recovery.</p>
+							<form id='upload_form_bp' method='POST' enctype='multipart/form-data'>
+								<div class="td-drop-zone" data-for="firmware_file_bp">
+									<span class="td-icon td-icon-lg">
+										<svg viewBox="0 0 16 16"><path d="M8 11V3"/><path d="M5 6l3-3 3 3"/><path d="M3 11v2h10v-2"/></svg>
+									</span>
+									<span class="td-drop-label">Click to select firmware, or drag and drop</span>
+									<span class="td-drop-filename"></span>
+								</div>
+								<input id='firmware_file_bp' type='file' name='update' style="display:none">
+								<div style="margin-top:var(--td-s-3);">
+									<input type='submit' value='Update' class='td-btn td-btn-primary td-btn-lg'>
+								</div>
+								<div style="margin-top:var(--td-s-3);">
+									<p id="status_bp" class="td-small td-mute"></p>
+									<progress id="progressBar_bp" value="0" max="100"></progress>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- TX pane -->
+			<section class="td-tab-pane" data-tab="tx">
+				<div class="td-page">
+					<div class="td-two-col" style="margin-top:var(--td-s-4);">
+						<div class="td-card" style="min-height:400px;">
+							<div class="td-card-header">
+								<span class="td-h4">Devices</span>
+								<button id="scan_devices" class="td-btn td-btn-sm">Reload</button>
+							</div>
+							<div class="td-card-body">
+								<div id="device_list">
+									<p class="td-small td-mute td-center">Scanning for devices...</p>
+								</div>
+							</div>
+						</div>
+
+						<div class="td-card" style="min-height:400px;">
+							<div class="td-card-header" id="params_header">
+								<span class="td-h4" id="params_device_name">Select a device</span>
+								<button id="reload_params" class="td-btn td-btn-sm" disabled>Reload</button>
+							</div>
+							<div id="params_status" style="display:none;" class="td-params-status">
+								<span id="params_linkstat"></span>
+							</div>
+							<div id="params_breadcrumb" style="display:none;" class="td-card-row">
+								<button id="params_back" class="td-btn td-btn-sm">&larr; Back</button>
+								<span id="params_path" class="td-small td-mute"></span>
+							</div>
+							<div class="td-card-body">
+								<div id="params_content">
+									<p class="td-small td-mute td-center" style="margin-top:var(--td-s-6);">No device selected</p>
+								</div>
+								<div id="params_loading" style="display:none;text-align:center;margin-top:var(--td-s-6);">
+									<div class="td-spinner"></div>
+									<p class="td-small td-mute" style="margin-top:var(--td-s-2);">Loading parameters...</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</div>
+
+		<footer class="td-footer">
+			<a href="https://github.com/TitanDynamics/TitanLRS-Backpack">GitHub</a>
+		</footer>
+	</div>
+
+<script src="/td.js"></script>
+<script src="/td-extensions.js"></script>
+<script src="/scan.js"></script>
+</body>
+</html>
