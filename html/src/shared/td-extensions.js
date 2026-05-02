@@ -1,55 +1,73 @@
-/* TitanLRS Backpack — tab switcher + utilities to replace mui.js tab behaviour. */
+/* TitanLRS Backpack — hash router, sidebar toggle, overlay, drop-zone. */
 (function () {
   'use strict';
 
-  // ── Tab switcher ─────────────────────────────────────────────────────────────
-  // Finds all [data-td-tabs] containers, wires clicks on .td-tabs button[data-tab]
-  // to set is-active on both the button and the matching .td-tab-pane[data-tab].
-  // Exposes TdBP.activateTab(name) for programmatic tab activation (used by scan.js).
+  // ── Hash router ──────────────────────────────────────────────────────────────
+  // Hides all [data-route] sections, shows the one matching location.hash.
+  // Falls back to the first [data-route] when hash is empty or unknown.
+  // Fires td:tabchange for backward compat with scan.js.
 
-  function activateTab(name) {
-    // Find button(s) with matching data-tab across all tab groups
-    var buttons = document.querySelectorAll('.td-tabs > button[data-tab="' + name + '"]');
-    buttons.forEach(function (btn) {
-      var container = btn.closest('[data-td-tabs]');
-      if (!container) return;
-      // Deactivate all in this group
-      container.querySelectorAll('.td-tabs > button').forEach(function (b) {
-        b.classList.remove('is-active');
+  function navigate(isInitial) {
+    var routeName = location.hash.slice(1) || '';
+    var sections = document.querySelectorAll('[data-route]');
+    if (!sections.length) return;
+
+    var target = routeName ? document.querySelector('[data-route="' + routeName + '"]') : null;
+    if (!target) {
+      target = sections[0];
+      routeName = target ? target.dataset.route : '';
+    }
+
+    function doSwap() {
+      sections.forEach(function (s) { s.hidden = true; });
+      if (target) target.hidden = false;
+
+      document.querySelectorAll('.td-nav-item').forEach(function (a) {
+        a.classList.toggle('is-active', a.getAttribute('href') === '#' + routeName);
       });
-      // Find and hide all panes
-      document.querySelectorAll('.td-tab-pane').forEach(function (pane) {
-        pane.classList.remove('is-active');
-      });
-      // Activate this button and its pane
-      btn.classList.add('is-active');
-      var pane = document.querySelector('.td-tab-pane[data-tab="' + name + '"]');
-      if (pane) pane.classList.add('is-active');
-      // Fire custom event so scan.js can react
-      container.dispatchEvent(new CustomEvent('td:tabchange', { detail: { tab: name }, bubbles: true }));
-    });
+
+      // Update topbar breadcrumb route label
+      var breadcrumbRoute = document.getElementById('breadcrumb_route');
+      if (breadcrumbRoute) {
+        var activeNav = document.querySelector('.td-nav-item.is-active');
+        breadcrumbRoute.textContent = activeNav ? activeNav.textContent.trim() : '';
+      }
+
+      // Fire events for scan.js compat (td:tabchange on document + on the nav item)
+      document.dispatchEvent(new CustomEvent('td:tabchange', { detail: { tab: routeName } }));
+      var navItem = document.querySelector('.td-nav-item[href="#' + routeName + '"]');
+      if (navItem) navItem.dispatchEvent(new CustomEvent('td:tabchange', { detail: { tab: routeName }, bubbles: true }));
+
+      var main = document.getElementById('main');
+      if (main) { main.classList.remove('route-fade-out'); main.classList.add('route-fade-in'); }
+    }
+
+    if (!isInitial) {
+      var main = document.getElementById('main');
+      if (main) {
+        main.classList.add('route-fade-out');
+        main.classList.remove('route-fade-in');
+        setTimeout(doSwap, 120);
+      } else {
+        doSwap();
+      }
+    } else {
+      doSwap();
+    }
   }
 
-  function initTabs() {
-    document.querySelectorAll('[data-td-tabs]').forEach(function (container) {
-      container.querySelectorAll('.td-tabs > button[data-tab]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          activateTab(btn.dataset.tab);
-        });
-      });
-    });
-    // Ensure at least one tab is active (the first visible one)
-    document.querySelectorAll('[data-td-tabs]').forEach(function (container) {
-      var active = container.querySelector('.td-tabs > button.is-active');
-      if (!active) {
-        var first = container.querySelector('.td-tabs > button:not([style*="display: none"]):not([style*="display:none"])');
-        if (first) activateTab(first.dataset.tab);
-      } else {
-        // Make sure pane is shown for any pre-marked active button
-        var pane = document.querySelector('.td-tab-pane[data-tab="' + active.dataset.tab + '"]');
-        if (pane && !pane.classList.contains('is-active')) pane.classList.add('is-active');
-      }
-    });
+  // ── Mobile sidebar toggle ────────────────────────────────────────────────────
+  function initSidebar() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var drawer = document.getElementById('sidedrawer');
+    var backdrop = document.getElementById('sidebar-backdrop');
+
+    function open() { if (drawer) drawer.classList.add('active'); if (backdrop) backdrop.classList.add('active'); }
+    function close() { if (drawer) drawer.classList.remove('active'); if (backdrop) backdrop.classList.remove('active'); }
+
+    if (toggle) toggle.addEventListener('click', open);
+    if (backdrop) backdrop.addEventListener('click', close);
+    document.querySelectorAll('.td-nav-item').forEach(function (a) { a.addEventListener('click', close); });
   }
 
   // ── Overlay (replaces mui.overlay used by calibration) ──────────────────────
@@ -61,20 +79,14 @@
     _overlay.className = 'td-overlay';
     var inner = document.createElement('div');
     inner.className = 'td-overlay-content';
-    if (typeof content === 'string') {
-      inner.innerHTML = content;
-    } else if (content instanceof HTMLElement) {
-      inner.appendChild(content);
-    }
+    if (typeof content === 'string') { inner.innerHTML = content; }
+    else if (content instanceof HTMLElement) { inner.appendChild(content); }
     _overlay.appendChild(inner);
     document.body.appendChild(_overlay);
   }
 
   function overlayOff() {
-    if (_overlay) {
-      _overlay.remove();
-      _overlay = null;
-    }
+    if (_overlay) { _overlay.remove(); _overlay = null; }
   }
 
   // ── Drop-zone wiring ─────────────────────────────────────────────────────────
@@ -84,10 +96,7 @@
       var input = document.getElementById(inputId);
       if (!input) return;
       zone.addEventListener('click', function () { input.click(); });
-      zone.addEventListener('dragover', function (e) {
-        e.preventDefault();
-        zone.classList.add('is-active');
-      });
+      zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('is-active'); });
       zone.addEventListener('dragleave', function () { zone.classList.remove('is-active'); });
       zone.addEventListener('drop', function (e) {
         e.preventDefault();
@@ -109,20 +118,20 @@
 
   // ── DOMContentLoaded init ───────────────────────────────────────────────────
   function init() {
-    initTabs();
+    navigate(true);
+    initSidebar();
     initDropZones();
     if (window.TD) { TD.init(); }
   }
 
-  if (document.readyState !== 'loading') {
-    init();
-  } else {
-    document.addEventListener('DOMContentLoaded', init);
-  }
+  window.addEventListener('hashchange', function () { navigate(false); });
+
+  if (document.readyState !== 'loading') { init(); }
+  else { document.addEventListener('DOMContentLoaded', init); }
 
   // ── Public API ───────────────────────────────────────────────────────────────
   window.TdBP = {
-    activateTab: activateTab,
+    navigate: navigate,
     overlayOn: overlayOn,
     overlayOff: overlayOff
   };

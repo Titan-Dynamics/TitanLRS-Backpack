@@ -73,6 +73,7 @@ function guessContentType(filePath) {
 
 function viteEsp32HeaderPlugin(options = {}) {
   const headerName = options.headerName || 'esp32_fs.h'
+  const extraPublicDirs = options.extraPublicDirs || []
 
   let outDir = 'dist'
   let root = process.cwd()
@@ -92,6 +93,16 @@ function viteEsp32HeaderPlugin(options = {}) {
         if (!st.isDirectory()) return
       } catch (e) {
         return
+      }
+
+      // Copy any extra per-target public dirs into dist before generating header
+      for (const extraDir of extraPublicDirs) {
+        for await (const filePath of walk(extraDir)) {
+          const rel = path.relative(extraDir, filePath)
+          const dest = path.join(distDir, rel)
+          await fs.mkdir(path.dirname(dest), { recursive: true })
+          await fs.copyFile(filePath, dest)
+        }
       }
 
       const files = []
@@ -167,7 +178,9 @@ export default defineConfig(({ command }) => {
     root: pageRoot,
     publicDir: path.resolve(__dirname, 'public'),
     plugins: [
-      viteEsp32HeaderPlugin(),
+      viteEsp32HeaderPlugin({
+        extraPublicDirs: target === 'vrx' ? [path.resolve(__dirname, 'public-vrx')] : [],
+      }),
       ...(command === 'serve' ? [devMockPlugin()] : []),
     ],
     esbuild: {

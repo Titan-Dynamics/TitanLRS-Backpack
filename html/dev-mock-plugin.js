@@ -32,6 +32,7 @@ const PT_UINT8     = 0x00
 const PT_TEXT_SEL  = 0x09
 const PT_INFO      = 0x0C
 const PT_FOLDER    = 0x0B
+const PT_COMMAND   = 0x0D
 
 function crsfCRC(data) {
   let crc = 0
@@ -120,6 +121,11 @@ function buildParamEntry(paramNum, chunksRemaining, entry) {
     case PT_INFO:
       o = writeStr(tmp, o, entry.value ?? '')
       break
+    case PT_COMMAND:
+      tmp[o++] = entry.status ?? 0   // status: 0=ready
+      tmp[o++] = entry.timeout ?? 0
+      o = writeStr(tmp, o, entry.info ?? '')
+      break
     case PT_FOLDER:
       break  // no additional data
   }
@@ -132,66 +138,101 @@ function buildParamEntry(paramNum, chunksRemaining, entry) {
 // ─────────────────────────────────────────────────────────────────────────────
 const MOCK_DEVICES = [
   {
-    name:        'ELRS TX Mock',
-    address:     ADDR_TX,
-    serialNumber: 0x454C5253,  // 'ELRS'
-    hwId:        0x00010000,
-    fwId:        0x00030300,
-    isElrs:      true,
+    name:         'RM Bandit',
+    address:      ADDR_TX,
+    serialNumber: 0x454C5253,
+    hwId:         0x00010000,
+    fwId:         0x00040000,
+    isElrs:       true,
     params: [
-      // 1: Folder — Packet Settings
-      { parent: 0, type: PT_FOLDER, name: 'Packet Settings' },
-      // 2: Packet Rate
-      { parent: 1, type: PT_TEXT_SEL, name: 'Packet Rate',
-        options: ['25Hz','50Hz','100Hz','200Hz','500Hz'], value: 2, def: 2 },
-      // 3: Telem Ratio
-      { parent: 1, type: PT_TEXT_SEL, name: 'Telem Ratio',
-        options: ['Off','1:128','1:64','1:32','1:16','1:8','1:4','1:2'], value: 1, def: 1 },
-      // 4: Switch Mode
-      { parent: 1, type: PT_TEXT_SEL, name: 'Switch Mode',
-        options: ['Hybrid','Wide','8ch'], value: 0, def: 0 },
-      // 5: Folder — Power
-      { parent: 0, type: PT_FOLDER, name: 'TX Power' },
-      // 6: Max Power
-      { parent: 5, type: PT_TEXT_SEL, name: 'Max Power',
-        options: ['10mW','25mW','50mW','100mW','250mW','500mW','1000mW','2000mW'], value: 2, def: 2 },
-      // 7: Dynamic Power
-      { parent: 5, type: PT_TEXT_SEL, name: 'Dynamic Power',
-        options: ['Off','On','AUX9','AUX10','AUX11','AUX12'], value: 1, def: 0 },
-      // 8: Folder — Binding
-      { parent: 0, type: PT_FOLDER, name: 'Binding' },
-      // 9: Bind phrase (info)
-      { parent: 8, type: PT_INFO, name: 'Bind Phrase', value: 'defaultphrase' },
-      // 10: Model info
-      { parent: 0, type: PT_INFO, name: 'Model ID', value: 'Mock Model 1' },
+      // Root params (1–12)
+      /* 1  */ { parent: 0, type: PT_TEXT_SEL, name: 'Packet Rate',
+                 options: ['50Hz(-117dBm)','100Hz(-115dBm)','150Hz(-112dBm)','200Hz(-112dBm)','250Hz(-108dBm)','333Hz(-105dBm)','500Hz(-102dBm)'], value: 3, def: 3 },
+      /* 2  */ { parent: 0, type: PT_TEXT_SEL, name: 'Telem Ratio',
+                 options: ['Std','Off','1:128','1:64','1:32','1:16','1:8','1:4','1:2','Race'], value: 8, def: 1 },
+      /* 3  */ { parent: 0, type: PT_TEXT_SEL, name: 'Switch Mode',
+                 options: ['Hybrid','Wide'], value: 0, def: 0 },
+      /* 4  */ { parent: 0, type: PT_TEXT_SEL, name: 'Link Mode',
+                 options: ['Normal','MAVLink'], value: 1, def: 0 },
+      /* 5  */ { parent: 0, type: PT_TEXT_SEL, name: 'Model Match',
+                 options: ['Off','On'], value: 0, def: 0, unit: 'ID: 0' },
+      /* 6  */ { parent: 0, type: PT_FOLDER,   name: 'TX Power (1000mW Dyn)' },
+      /* 7  */ { parent: 0, type: PT_FOLDER,   name: 'VTX Administrator' },
+      /* 8  */ { parent: 0, type: PT_FOLDER,   name: 'WiFi Connectivity' },
+      /* 9  */ { parent: 0, type: PT_FOLDER,   name: 'Backpack' },
+      /* 10 */ { parent: 0, type: PT_COMMAND,  name: 'BLE Joystick', status: 0, timeout: 0 },
+      /* 11 */ { parent: 0, type: PT_COMMAND,  name: 'Bind',         status: 0, timeout: 0 },
+      /* 12 */ { parent: 0, type: PT_INFO,     name: '4.0.0-TD FCC915', value: '3f867a' },
+      // TX Power sub-params (parent = param 6)
+      /* 13 */ { parent: 6, type: PT_TEXT_SEL, name: 'Max Power',
+                 options: ['10mW','25mW','50mW','100mW','250mW','500mW','1000mW'], value: 6, def: 2 },
+      /* 14 */ { parent: 6, type: PT_TEXT_SEL, name: 'Dynamic',
+                 options: ['Off','On','AUX9','AUX10','AUX11','AUX12'], value: 1, def: 0 },
+      // VTX Administrator sub-params (parent = param 7)
+      /* 15 */ { parent: 7, type: PT_TEXT_SEL, name: 'Band',
+                 options: ['Off','A','B','E','F','R','L'], value: 0, def: 0 },
+      /* 16 */ { parent: 7, type: PT_TEXT_SEL, name: 'Channel',
+                 options: ['1','2','3','4','5','6','7','8'], value: 0, def: 0 },
+      /* 17 */ { parent: 7, type: PT_TEXT_SEL, name: 'Pwr Lvl',
+                 options: ['-','1','2','3','4','5','6','7','8'], value: 0, def: 0 },
+      /* 18 */ { parent: 7, type: PT_TEXT_SEL, name: 'Pitmode',
+                 options: ['Off','On'], value: 0, def: 0 },
+      /* 19 */ { parent: 7, type: PT_COMMAND,  name: 'Send VTx', status: 0, timeout: 0 },
+      // WiFi Connectivity sub-params (parent = param 8)
+      /* 20 */ { parent: 8, type: PT_COMMAND,  name: 'Enable WiFi',          status: 0, timeout: 10 },
+      /* 21 */ { parent: 8, type: PT_COMMAND,  name: 'Enable Rx WiFi',        status: 0, timeout: 10 },
+      /* 22 */ { parent: 8, type: PT_COMMAND,  name: 'Enable Backpack WiFi',  status: 0, timeout: 10 },
+      /* 23 */ { parent: 8, type: PT_INFO,     name: 'WiFi SSID', value: '' },
+      /* 24 */ { parent: 8, type: PT_INFO,     name: 'WiFi key',  value: '' },
+      /* 25 */ { parent: 8, type: PT_UINT8,    name: 'WiFi on interval',
+                 value: 0, min: 0, max: 255, def: 60, unit: 's' },
+      // Backpack sub-params (parent = param 9)
+      /* 26 */ { parent: 9, type: PT_TEXT_SEL, name: 'Backpack',
+                 options: ['Off','On'], value: 1, def: 0 },
+      /* 27 */ { parent: 9, type: PT_COMMAND,  name: 'Send OSD', status: 0, timeout: 0 },
+      /* 28 */ { parent: 9, type: PT_TEXT_SEL, name: 'Team Race',
+                 options: ['Off','On'], value: 0, def: 0 },
+      /* 29 */ { parent: 9, type: PT_TEXT_SEL, name: 'Telemetry',
+                 options: ['Off','On'], value: 1, def: 1 },
+      /* 30 */ { parent: 9, type: PT_TEXT_SEL, name: 'FC/GCS',
+                 options: ['Off','On'], value: 1, def: 0 },
+      /* 31 */ { parent: 9, type: PT_TEXT_SEL, name: 'OSD Style',
+                 options: ['BETAFLIGHT','INAV'], value: 0, def: 0 },
+      /* 32 */ { parent: 9, type: PT_TEXT_SEL, name: 'OSD Units',
+                 options: ['Imperial','Metric'], value: 1, def: 1 },
+      /* 33 */ { parent: 9, type: PT_TEXT_SEL, name: 'HT Enable',
+                 options: ['Off','On'], value: 0, def: 0 },
     ],
   },
   {
-    name:        'ELRS RX Mock',
-    address:     ADDR_RX,
-    serialNumber: 0x454C5253,  // 'ELRS'
-    hwId:        0x00020000,
-    fwId:        0x00030300,
-    isElrs:      true,
+    name:         'RM XR1',
+    address:      ADDR_RX,
+    serialNumber: 0x454C5253,
+    hwId:         0x00020000,
+    fwId:         0x00040000,
+    isElrs:       true,
     params: [
-      // 1: Folder — Packet Settings
-      { parent: 0, type: PT_FOLDER, name: 'Packet Settings' },
-      // 2: Packet Rate
-      { parent: 1, type: PT_TEXT_SEL, name: 'Packet Rate',
-        options: ['25Hz','50Hz','100Hz','200Hz','500Hz'], value: 2, def: 2 },
-      // 3: Telem Ratio
-      { parent: 1, type: PT_TEXT_SEL, name: 'Telem Ratio',
-        options: ['Off','1:128','1:64','1:32','1:16','1:8','1:4','1:2'], value: 1, def: 1 },
-      // 4: Folder — Power / Sensitivity
-      { parent: 0, type: PT_FOLDER, name: 'Sensitivity' },
-      // 5: RSSI Threshold
-      { parent: 4, type: PT_UINT8, name: 'RSSI Threshold',
-        value: 105, min: 50, max: 150, def: 105, unit: 'dBm' },
-      // 6: Antenna
-      { parent: 0, type: PT_TEXT_SEL, name: 'Antenna',
-        options: ['Antenna A','Antenna B','Diversity'], value: 2, def: 2 },
-      // 7: Firmware info
-      { parent: 0, type: PT_INFO, name: 'Firmware', value: '3.3.0 (mock)' },
+      // Root params (1–12) + 1 TX Power sub-param = 13 total
+      /* 1  */ { parent: 0, type: PT_TEXT_SEL, name: 'Packet Rate',
+                 options: ['50Hz(-117dBm)','100Hz(-115dBm)','150Hz(-112dBm)','200Hz(-112dBm)','250Hz(-108dBm)','333Hz(-105dBm)','500Hz(-102dBm)'], value: 3, def: 3 },
+      /* 2  */ { parent: 0, type: PT_TEXT_SEL, name: 'Telem Ratio',
+                 options: ['Std','Off','1:128','1:64','1:32','1:16','1:8','1:4','1:2','Race'], value: 8, def: 1 },
+      /* 3  */ { parent: 0, type: PT_TEXT_SEL, name: 'Switch Mode',
+                 options: ['Hybrid','Wide'], value: 0, def: 0 },
+      /* 4  */ { parent: 0, type: PT_TEXT_SEL, name: 'Link Mode',
+                 options: ['Normal','MAVLink'], value: 1, def: 0 },
+      /* 5  */ { parent: 0, type: PT_TEXT_SEL, name: 'Model Match',
+                 options: ['Off','On'], value: 0, def: 0, unit: 'ID: 0' },
+      /* 6  */ { parent: 0, type: PT_FOLDER,   name: 'TX Power (1000mW Dyn)' },
+      /* 7  */ { parent: 0, type: PT_FOLDER,   name: 'VTX Administrator' },
+      /* 8  */ { parent: 0, type: PT_FOLDER,   name: 'WiFi Connectivity' },
+      /* 9  */ { parent: 0, type: PT_FOLDER,   name: 'Backpack' },
+      /* 10 */ { parent: 0, type: PT_COMMAND,  name: 'BLE Joystick', status: 0, timeout: 0 },
+      /* 11 */ { parent: 0, type: PT_COMMAND,  name: 'Bind',         status: 0, timeout: 0 },
+      /* 12 */ { parent: 0, type: PT_INFO,     name: '4.0.0-TD FCC915', value: '3f867a' },
+      // TX Power sub-param (parent = param 6)
+      /* 13 */ { parent: 6, type: PT_TEXT_SEL, name: 'Max Power',
+                 options: ['10mW','25mW','50mW','100mW','250mW','500mW','1000mW'], value: 6, def: 2 },
     ],
   },
 ]

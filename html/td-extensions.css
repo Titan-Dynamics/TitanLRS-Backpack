@@ -115,9 +115,9 @@
 }
 .td-device-item:last-child { border-bottom: none; }
 .td-device-name {
-  font-weight: 500;
+  font-weight: 700;
   color: var(--td-fg);
-  font-size: var(--td-fs-md);
+  font-size: 16px;
 }
 .td-device-meta {
   margin-top: 2px;
@@ -478,9 +478,9 @@ body.td {
   padding-left: calc(var(--td-s-4) - 2px);
 }
 .td-device-name {
-  font-weight: 500;
+  font-weight: 700;
   color: var(--td-fg);
-  font-size: var(--td-fs-md);
+  font-size: 16px;
 }
 
 /* ── Icon button small ────────────────────────────────── */

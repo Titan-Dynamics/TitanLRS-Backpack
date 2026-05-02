@@ -630,10 +630,6 @@ function cuteAlert({
     return new Promise((resolve) => {
       const body = document.querySelector("body");
 
-      // Map alert type to TD chip class and header tint
-      const chipMap = { success: 'td-chip-ok', error: 'td-chip-bad', warning: 'td-chip-warn', info: 'td-chip-info', question: 'td-chip-warn' };
-      const chipClass = chipMap[type] || 'td-chip-info';
-
       let actionsTemplate;
       if (type === "question") {
         actionsTemplate = `
@@ -653,7 +649,6 @@ function cuteAlert({
   <div class="td-card td-modal">
     <div class="td-card-header">
       <span class="td-h4">${title}</span>
-      <span class="td-chip ${chipClass}">${type}</span>
     </div>
     <div class="td-modal-body">
       <p class="td-modal-message">${message}</p>

@@ -26,6 +26,21 @@ function initAat() {
     );
 }
 
+var mavLinkStatsInterval = null;
+
+function startMavLinkPolling() {
+    if (mavLinkStatsInterval) return;
+    updateMavLinkStats();
+    mavLinkStatsInterval = setInterval(updateMavLinkStats, 1000);
+}
+
+function stopMavLinkPolling() {
+    if (mavLinkStatsInterval) {
+        clearInterval(mavLinkStatsInterval);
+        mavLinkStatsInterval = null;
+    }
+}
+
 function initMavLink() {
     // Fetch initial MavLink configuration
     const xmlhttp = new XMLHttpRequest();
@@ -33,10 +48,6 @@ function initMavLink() {
         if (this.readyState == 4 && this.status == 200) {
             const data = JSON.parse(this.responseText);
             updateMavLinkConfig(data);
-            
-            // Start periodic updates of MavLink stats
-            updateMavLinkStats();
-            setInterval(updateMavLinkStats, 1000);
 
             const resetButton = _('mavlink_reset_defaults');
             if (resetButton) {
@@ -46,6 +57,15 @@ function initMavLink() {
     };
     xmlhttp.open('GET', '/mavlink', true);
     xmlhttp.send();
+
+    // Poll stats only while the MAVLink page is active
+    document.addEventListener('td:tabchange', function(e) {
+        if (e.detail && e.detail.tab === 'mavlink') {
+            startMavLinkPolling();
+        } else {
+            stopMavLinkPolling();
+        }
+    });
 }
 function initOptions() {
     const xmlhttp = new XMLHttpRequest();
@@ -61,6 +81,7 @@ function initOptions() {
 }
 
 function updateMavLinkConfig(data) {
+    if (!_('mavlink_listen_port')) return;
     _('mavlink_listen_port').value = data.ports.listen;
     _('mavlink_send_port').value = data.ports.send;
 }
@@ -72,6 +93,7 @@ function updateMavLinkStats() {
             const data = JSON.parse(this.responseText);
             
             // Update Stats
+            if (!_('mavlink_gcs_ip')) return;
             _('mavlink_gcs_ip').textContent = data.ip.gcs;
             _('mavlink_packets_down').textContent = data.counters.packets_down;
             _('mavlink_packets_up').textContent = data.counters.packets_up;
@@ -88,6 +110,7 @@ function resetMavLinkDefaults() {
     const defaultListenPort = 14555;
 
     // Update the input fields
+    if (!_('mavlink_listen_port')) return;
     _('mavlink_listen_port').value = defaultListenPort;
     _('mavlink_send_port').value = defaultSendPort;
 
@@ -143,12 +166,12 @@ function updateConfig(data) {
     if(config['version'] && _('version_text')) _('version_text').textContent = config['version'];
 
     // Update AP SSID field with current value
-    if (config['ap_ssid']) {
+    if (config['ap_ssid'] && _('ap_ssid')) {
         _('ap_ssid').value = config['ap_ssid'];
     }
 
     // Update AP password field with current value
-    if (config['ap_password']) {
+    if (config['ap_password'] && _('ap_password')) {
         _('ap_password').value = config['ap_password'];
     }
 
@@ -516,10 +539,10 @@ function aatLineElementChanged()
 _('sethome').addEventListener('submit', callback("Set Home Network", "An error occurred setting the home network", "/sethome", function() {
     return new FormData(_('sethome'));
 }));
-_('setapssid').addEventListener('submit', callback("WiFi AP SSID Updated", "An error occurred updating the AP SSID", "/setapssid", function() {
+if (_('setapssid')) _('setapssid').addEventListener('submit', callback("WiFi AP SSID Updated", "An error occurred updating the AP SSID", "/setapssid", function() {
     return new FormData(_('setapssid'));
 }));
-_('ap_ssid_reset').addEventListener('click', function() {
+if (_('ap_ssid_reset')) _('ap_ssid_reset').addEventListener('click', function() {
     // Reset to default by clearing the custom SSID
     const xmlhttp = new XMLHttpRequest();
     xmlhttp.onreadystatechange = function() {
@@ -556,10 +579,10 @@ _('ap_ssid_reset').addEventListener('click', function() {
     formData.append('ap_ssid', '___DEFAULT___');
     xmlhttp.send(formData);
 });
-_('setappassword').addEventListener('submit', callback("WiFi AP Password Updated", "An error occurred updating the AP Password", "/setappassword", function() {
+if (_('setappassword')) _('setappassword').addEventListener('submit', callback("WiFi AP Password Updated", "An error occurred updating the AP Password", "/setappassword", function() {
     return new FormData(_('setappassword'));
 }));
-_('ap_password_reset').addEventListener('click', function() {
+if (_('ap_password_reset')) _('ap_password_reset').addEventListener('click', function() {
     // Reset to default by clearing the custom password
     const xmlhttp = new XMLHttpRequest();
     xmlhttp.onreadystatechange = function() {
@@ -596,7 +619,7 @@ _('ap_password_reset').addEventListener('click', function() {
     formData.append('ap_password', '___DEFAULT___');
     xmlhttp.send(formData);
 });
-_('ap_password_toggle').addEventListener('click', function() {
+if (_('ap_password_toggle')) _('ap_password_toggle').addEventListener('click', function() {
     const passwordInput = _('ap_password');
     const eyeIcon = _('ap_password_eye');
     const eyeOffIcon = _('ap_password_eye_off');
@@ -631,10 +654,6 @@ function cuteAlert({
     return new Promise((resolve) => {
       const body = document.querySelector("body");
 
-      // Map alert type to TD chip class and header tint
-      const chipMap = { success: 'td-chip-ok', error: 'td-chip-bad', warning: 'td-chip-warn', info: 'td-chip-info', question: 'td-chip-warn' };
-      const chipClass = chipMap[type] || 'td-chip-info';
-
       let actionsTemplate;
       if (type === "question") {
         actionsTemplate = `
@@ -654,7 +673,6 @@ function cuteAlert({
   <div class="td-card td-modal">
     <div class="td-card-header">
       <span class="td-h4">${title}</span>
-      <span class="td-chip ${chipClass}">${type}</span>
     </div>
     <div class="td-modal-body">
       <p class="td-modal-message">${message}</p>
@@ -1730,9 +1748,8 @@ const CrsfParams = {
             html += `
                 <div class="td-device-item${selected ? ' is-selected' : ''}" onclick="CrsfParams.selectDevice(${deviceJson})">
                     <div class="td-device-name">${device.name}</div>
-                    <div class="td-small td-mute td-mono">
-                        0x${device.address.toString(16).toUpperCase()} &bull; ${device.parametersTotal} params
-                    </div>
+                    <div class="td-small td-mute td-mono">0x${device.address.toString(16).toUpperCase()}</div>
+                    <div class="td-small td-mute">${device.parametersTotal} params</div>
                 </div>
             `;
         });
@@ -1749,7 +1766,7 @@ const CrsfParams = {
             return;
         }
 
-        let html = '<table class="td-table" style="width:100%;">';
+        let html = '<table class="td-table td-table-roomy" style="width:100%;">';
         params.forEach(param => {
             html += '<tr>';
             html += `<td style="width:40%;">${param.name}</td>`;
